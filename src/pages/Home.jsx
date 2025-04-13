@@ -58,7 +58,9 @@ function Home() {
   const fetchProtocolValue = async (contract) => {
     try {
       const value = await contract.getProtocolValue();
-      const valueInEth = ethers.formatUnits(value, 18);
+      console.log("Protocol Value:", value);
+      const valueInEth = ethers.formatUnits(value, 36);
+      console.log("Protocol Value in ETH:", valueInEth);
       setProtocolValue(valueInEth);
     } catch (error) {
       console.error("Error fetching protocol value:", error);
@@ -68,7 +70,9 @@ function Home() {
   const fetchCollateralLocked = async (contract) => {
     try {
       const totalCollateral = await contract.getTotalCollateralETH();
+      console.log("Total Collateral Locked:", totalCollateral);
       const totalCollateralInEth = ethers.formatUnits(totalCollateral, 18);
+      console.log("Total Collateral Locked in ETH:", totalCollateralInEth);
       setCollateralLocked(totalCollateralInEth);
     } catch (error) {
       console.error("Error fetching collateral locked:", error);
@@ -107,7 +111,7 @@ function Home() {
           <div className="mb-10">
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">
-                AEthos
+                aETHOS
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto font-light">
@@ -170,13 +174,13 @@ function Home() {
           <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 p-8 rounded-2xl backdrop-blur-sm">
             <div className="text-center p-6">
               <p className="text-4xl font-light text-white mb-2">
-                {loading ? "Loading..." : formatValue(collateralLocked)}
+                {loading ? "Loading..." : (collateralLocked) + " ETH"}
               </p>
               <p className="text-gray-400">Total Collateral Locked</p>
             </div>
             <div className="text-center p-6 border-y md:border-y-0 md:border-x border-purple-500/10">
               <p className="text-4xl font-light text-white mb-2">
-                {loading ? "Loading..." : formatValue(calculateUSD(parseFloat(protocolValue)), true)}
+                {loading ? "Loading..." : "$" + (Math.floor(protocolValue * 100) / 100).toFixed(2)}
               </p>
               <p className="text-gray-400">Protocol Value</p>
             </div>
@@ -188,13 +192,13 @@ function Home() {
           <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6 p-8 rounded-2xl backdrop-blur-sm">
             <div className="text-center p-6">
               <p className="text-4xl font-light text-white mb-2">
-                {loading ? "Loading..." : formatValue(lendedAmount)}
+                {loading ? "Loading..." : (Math.floor(lendedAmount * 100) / 100).toFixed(2) + " aETH"}
               </p>
               <p className="text-gray-400">Total Lended aETH</p>
             </div>
             <div className="text-center p-6">
               <p className="text-4xl font-light text-white mb-2">
-                {loading ? "Loading..." : formatValue(totalLiquidity)}
+                {loading ? "Loading..." : (Math.floor(totalLiquidity * 100) / 100).toFixed(2) + " aETH"}
               </p>
               <p className="text-gray-400">Total Liquidity</p>
             </div>
@@ -206,7 +210,7 @@ function Home() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-semibold text-white mb-4">Simple by Design</h2>
             <p className="text-gray-300 max-w-2xl mx-auto">
-              AEthos simplifies DeFi lending and borrowing without sacrificing security or usability. The protocol operates with a clear set of principles.
+              aETHOS simplifies DeFi lending and borrowing without sacrificing security or usability. The protocol operates with a clear set of principles.
             </p>
           </div>
 
@@ -264,7 +268,7 @@ function Home() {
         {/* How It Works Section */}
         <section className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-semibold text-white mb-4">How AEthos Works</h2>
+            <h2 className="text-3xl font-semibold text-white mb-4">How aETHOS Works</h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -370,7 +374,7 @@ function Home() {
         <div className="max-w-6xl mx-auto px-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             <div>
-              <h5 className="font-medium text-white mb-4">AEthos</h5>
+              <h5 className="font-medium text-white mb-4">aETHOS</h5>
               <p className="text-gray-400 text-sm">
                 Lending and borrowing protocol secured by ETH collateral.
               </p>
@@ -419,7 +423,7 @@ function Home() {
 
           <div className="mt-8 pt-6 border-t border-purple-500/10 text-center">
             <p className="text-gray-400 text-sm">
-              © 2025 AEthos Protocol. All rights reserved.
+              © 2025 aETHOS Protocol. All rights reserved.
             </p>
           </div>
         </div>

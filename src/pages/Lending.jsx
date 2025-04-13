@@ -99,7 +99,7 @@ function Lending() {
       setDashboardStats({
         totalDeposited: ethers.formatEther(totalLended),
         earnedInterest: '0', // This would need to track actual paid interest
-        protocolValue: ethers.formatEther(protocolValue),
+        protocolValue: ethers.formatUnits(protocolValue, 36),
         yourDeposits: ethers.formatEther(amount),
         yourEarnings: potentialInterest,
         aEthBalance: ethers.formatEther(aEthBalance),
