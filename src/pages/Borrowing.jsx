@@ -87,24 +87,27 @@ function Borrowing() {
   const checkHealthWithEvent = async (userAccount) => {
     try {
       const { pool } = await getContracts();
-      if (!pool || !pool.HealthofLiquidity) {
-        console.error("HealthofLiquidity method is not available on the pool contract.");
-        return "Unknown";
+      if (!pool) return "Unknown";
+  
+      // Get borrower info to check if they have any borrowed amount
+      const [collateral, borrowedAmount] = await pool.getBorrowerInfo(userAccount);
+      
+      // If they haven't borrowed anything, return N/A
+      if (borrowedAmount === 0n) {
+        return "N/A - No active loans";
       }
-  
-      // Call the HealthofLiquidity function - it returns [isLiquidatable, collateralRatio]
-      const [liquid, cr] = await pool.callStatic.HealthofLiquidity(userAccount);
-  
-      // Format the collateral ratio for better readability
-      const formattedCollateralRatio = parseFloat(cr.toString()).toFixed(2);
-  
-      // Check the liquidity status based on the value of isLiquidatable
+      
+      // Call the HealthofLiquidity function - it returns [liquid, collateralRatio]
+      const [liquid, collateralRatio] = await pool.HealthofLiquidity(userAccount);
+      
+      // If liquid is true, it means the collateral ratio is BELOW 150% (at risk)
+      // If liquid is false, it means the collateral ratio is ABOVE 150% (healthy)
       return liquid ? 
-        `At Risk, Ratio: ${formattedCollateralRatio}%` : 
-        `Healthy, Ratio: ${formattedCollateralRatio}%`;
+        `At Risk, Ratio: ${collateralRatio.toString()}%` : 
+        `Healthy, Ratio: ${collateralRatio.toString()}%`;
     } catch (error) {
       console.error("Error in health check:", error);
-      return "Unknown";
+      return "Unknown - " + error.message;
     }
   };
   
@@ -148,7 +151,7 @@ function Borrowing() {
       });
 
       // Get all borrowers data
-      const borrowersData = await pool.getAllBorrowers();
+      const borrowersArray= await pool.getBorrowers();
       
       const activeBorrowingActivity = [];
 
@@ -161,21 +164,34 @@ function Borrowing() {
         });
       }
 
-      for (let i = 0; i < borrowersData.length; i++) {
-        const borrowerData = borrowersData[i];
-        const borrowerAddress = borrowerData[0]; // address
-        if (borrowerAddress.toLowerCase() === userAccount.toLowerCase()) continue; // Skip the user's own address
+      for (let i = 0; i < borrowersArray.length; i++) {
+        // Extract data carefully, checking the structure
+        let borrowerAddress, borrowerCollateral, borrowerAmountBorrowed;
         
-        const collateralAmount = borrowerData[1]; // collateral
-        const totalBorrowed = borrowerData[2]; // borrowed amount
+        // Log each item to debug
+        console.log(`Borrower ${i}:`, borrowersArray[i]);
         
-        if (collateralAmount === 0n) continue;
+        // Handle different potential return structures
+        if (Array.isArray(borrowersArray[i])) {
+          // If it's an array format
+          [borrowerAddress, borrowerCollateral, borrowerAmountBorrowed] = borrowersArray[i];
+        } else {
+          // If it's an object with properties
+          borrowerAddress = borrowersArray[i].borrower;
+          borrowerCollateral = borrowersArray[i].collateralamount;
+          borrowerAmountBorrowed = borrowersArray[i].aETHBorrowed;
+        }
+        
+        // Skip if it's the current user or has no collateral
+        if (borrowerAddress.toLowerCase() === userAccount.toLowerCase()) continue;
+        if (borrowerCollateral === 0n) continue;
         
         activeBorrowingActivity.push({
           address: shortenAddress(borrowerAddress),
-          collateralAmount: ethers.formatEther(collateralAmount),
-          borrowedAmount: ethers.formatEther(totalBorrowed),
+          collateralAmount: ethers.formatEther(borrowerCollateral),
+          borrowedAmount: ethers.formatEther(borrowerAmountBorrowed),
         });
+      
       }
       
       setBorrowers(activeBorrowingActivity);
@@ -194,25 +210,24 @@ function Borrowing() {
   
   const handleHealthCheck = async () => {
     try {
-        setIsLoading(true);
-        if (!account) {
-            alert("Wallet not connected");
-            setIsLoading(false);
-            return;
-        }
-
-        const result = await checkHealthWithEvent(account);
-        console.log("Health Check Result:", result); // Add this log
-        alert(`Your Health Status: ${result}`);
-        
-    } catch (error) {
-        console.error("Error during health check:", error);
-        alert("Failed to perform health check: " + error.message);
-    } finally {
+      setIsLoading(true);
+  
+      if (!account) {
+        alert("Wallet not connected");
         setIsLoading(false);
+        return;
+      }
+  
+      const result = await checkHealthWithEvent(account);
+      alert(`Your Health Status: ${result}`);
+      
+    } catch (error) {
+      console.error("Error during health check:", error);
+      alert("Failed to perform health check: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
-};
-
+  };
   
   const handleBorrow = async (e) => {
     e.preventDefault();
@@ -330,7 +345,7 @@ function Borrowing() {
                       </span>
                     </div>
                   </div>
-                  <button 
+<button 
   onClick={handleHealthCheck}
   className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
 >
