@@ -9,11 +9,11 @@ function Borrowing() {
   const [account, setAccount] = useState('');
   const [borrowers, setBorrowers] = useState([]);
   const [borrowingActivity, setBorrowingActivity] = useState([]);
-  
+
   const [dashboardStats, setDashboardStats] = useState({
     totalCollateral: '0',
-    availableLiquidity: '0', 
-    yourCollateral: '0', 
+    availableLiquidity: '0',
+    yourCollateral: '0',
     yourBorrowed: '0',
     yourHealthFactor: 'N/A'
   });
@@ -21,15 +21,15 @@ function Borrowing() {
   // Connect to wallet and load data
   useEffect(() => {
     let isMounted = true;
-    
+
     const init = async () => {
       if (window.ethereum) {
         try {
           // Check if account is already connected to prevent multiple requests
-          const accounts = await window.ethereum.request({ 
+          const accounts = await window.ethereum.request({
             method: 'eth_accounts' // Use eth_accounts instead of eth_requestAccounts to avoid prompting
           });
-          
+
           if (accounts && accounts.length > 0) {
             setAccount(accounts[0]);
             if (isMounted) {
@@ -38,8 +38,8 @@ function Borrowing() {
           } else {
             // Only request if no accounts are connected
             try {
-              const newAccounts = await window.ethereum.request({ 
-                method: 'eth_requestAccounts' 
+              const newAccounts = await window.ethereum.request({
+                method: 'eth_requestAccounts'
               });
               if (isMounted) {
                 setAccount(newAccounts[0]);
@@ -70,15 +70,15 @@ function Borrowing() {
           fetchData(accounts[0]);
         }
       };
-      
+
       window.ethereum.on('accountsChanged', handleAccountsChanged);
-      
+
       return () => {
         isMounted = false;
         window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
       };
     }
-    
+
     return () => {
       isMounted = false;
     };
@@ -88,29 +88,29 @@ function Borrowing() {
     try {
       const { pool } = await getContracts();
       if (!pool) return "Unknown";
-  
+
       // Get borrower info to check if they have any borrowed amount
       const [collateral, borrowedAmount] = await pool.getBorrowerInfo(userAccount);
-      
+
       // If they haven't borrowed anything, return N/A
       if (borrowedAmount === 0n) {
         return "N/A - No active loans";
       }
-      
+
       // Call the HealthofLiquidity function - it returns [liquid, collateralRatio]
       const [liquid, collateralRatio] = await pool.HealthofLiquidity(userAccount);
-      
+
       // If liquid is true, it means the collateral ratio is BELOW 150% (at risk)
       // If liquid is false, it means the collateral ratio is ABOVE 150% (healthy)
-      return liquid ? 
-        `At Risk, Ratio: ${collateralRatio.toString()}%` : 
+      return liquid ?
+        `At Risk, Ratio: ${collateralRatio.toString()}%` :
         `Healthy, Ratio: ${collateralRatio.toString()}%`;
     } catch (error) {
       console.error("Error in health check:", error);
       return "Unknown - " + error.message;
     }
   };
-  
+
 
   const fetchData = async (userAccount) => {
     if (!userAccount) {
@@ -121,7 +121,7 @@ function Borrowing() {
         return;
       }
     }
-    
+
     setIsLoading(true);
     try {
       const { aETH, pool } = await getContracts();
@@ -129,7 +129,7 @@ function Borrowing() {
         setIsLoading(false);
         return;
       }
-      
+
       //data from the contract for borrowing 
       const [collateral, borrowedAmount] = await pool.getBorrowerInfo(userAccount);
       const aEthBalance = await aETH.balanceOf(userAccount);
@@ -137,7 +137,7 @@ function Borrowing() {
       // Protocol Data 
       const totalLiquidity = await pool.getTotalLiquidity();
       const totalCollateral = await pool.getTotalCollateralETH();
-      
+
       const healthFactor = borrowedAmount > 0n
         ? await checkHealthWithEvent(userAccount)
         : 'N/A';
@@ -151,8 +151,8 @@ function Borrowing() {
       });
 
       // Get all borrowers data
-      const borrowersArray= await pool.getBorrowers();
-      
+      const borrowersArray = await pool.getBorrowers();
+
       const activeBorrowingActivity = [];
 
       if (collateral > 0n) {
@@ -167,10 +167,10 @@ function Borrowing() {
       for (let i = 0; i < borrowersArray.length; i++) {
         // Extract data carefully, checking the structure
         let borrowerAddress, borrowerCollateral, borrowerAmountBorrowed;
-        
+
         // Log each item to debug
         console.log(`Borrower ${i}:`, borrowersArray[i]);
-        
+
         // Handle different potential return structures
         if (Array.isArray(borrowersArray[i])) {
           // If it's an array format
@@ -181,19 +181,19 @@ function Borrowing() {
           borrowerCollateral = borrowersArray[i].collateralamount;
           borrowerAmountBorrowed = borrowersArray[i].aETHBorrowed;
         }
-        
+
         // Skip if it's the current user or has no collateral
         if (borrowerAddress.toLowerCase() === userAccount.toLowerCase()) continue;
         if (borrowerCollateral === 0n) continue;
-        
+
         activeBorrowingActivity.push({
           address: shortenAddress(borrowerAddress),
           collateralAmount: ethers.formatEther(borrowerCollateral),
           borrowedAmount: ethers.formatEther(borrowerAmountBorrowed),
         });
-      
+
       }
-      
+
       setBorrowers(activeBorrowingActivity);
       setBorrowingActivity(activeBorrowingActivity);
 
@@ -203,24 +203,24 @@ function Borrowing() {
       setIsLoading(false);
     }
   };
-  
+
   const shortenAddress = (address) => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
-  
+
   const handleHealthCheck = async () => {
     try {
       setIsLoading(true);
-  
+
       if (!account) {
         alert("Wallet not connected");
         setIsLoading(false);
         return;
       }
-  
+
       const result = await checkHealthWithEvent(account);
       alert(`Your Health Status: ${result}`);
-      
+
     } catch (error) {
       console.error("Error during health check:", error);
       alert("Failed to perform health check: " + error.message);
@@ -228,48 +228,48 @@ function Borrowing() {
       setIsLoading(false);
     }
   };
-  
+
   const handleBorrow = async (e) => {
     e.preventDefault();
-    
+
     if (!collateralAmount || isNaN(collateralAmount)) {
       alert("Please enter a valid collateral amount");
       return;
     }
-    
+
     try {
       setIsLoading(true);
       const { pool } = await getContracts();
-      
+
       if (!pool) {
         alert("Unable to connect to the contract");
         setIsLoading(false);
         return;
       }
-      
+
       // Convert ETH to Wei
       const collateralWei = ethers.parseEther(collateralAmount);
-      
+
       console.log("Borrowing with collateral:", collateralWei.toString());
-      
+
       // Call the borrow function with just the ETH value
       const tx = await pool.borrow({
         value: collateralWei
       });
-      
+
       console.log("Transaction sent:", tx.hash);
       alert(`Transaction submitted! Hash: ${tx.hash}`);
-      
+
       await tx.wait();
       console.log("Transaction confirmed!");
-      
+
       // Refresh data after successful transaction
       await fetchData(account);
-      
+
       // Reset form
       setCollateralAmount('');
       setBorrowAmount('');
-      
+
     } catch (error) {
       console.error("Error during borrowing:", error);
       alert("Failed to borrow: " + error.message);
@@ -284,7 +284,7 @@ function Borrowing() {
           <h1 className="text-4xl font-bold text-white mb-2">BORROW</h1>
           <p className="text-gray-300">Deposit ETH as collateral and borrow aUSD against it</p>
         </div>
-  
+
         {isLoading ? (
           <div className="flex justify-center items-center py-24">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
@@ -305,7 +305,7 @@ function Borrowing() {
                 </div>
               </div>
             </section>
-  
+
             {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
               {/* Your Borrowing Info */}
@@ -320,7 +320,7 @@ function Borrowing() {
                     </div>
                     <h3 className="text-2xl font-semibold text-white">Your Borrowing</h3>
                   </div>
-                  
+
                   <div className="space-y-6 text-gray-300 mb-8">
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
                       <span>Your Collateral</span>
@@ -329,35 +329,34 @@ function Borrowing() {
 
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
                       <span>Amount Borrowed</span>
-                      <span className="text-white font-medium">${dashboardStats.yourBorrowed}</span>
+                      <span className="text-white font-medium">{Number(dashboardStats.yourBorrowed).toFixed(4) + "aETH"}</span>
                     </div>
 
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
                       <span>Health Status</span>
-                      <span className={`font-medium ${
-                        dashboardStats.yourHealthFactor === 'N/A'
-                          ? 'text-gray-400'
-                          : dashboardStats.yourHealthFactor.includes('At Risk')
-                            ? 'text-red-400'
-                            : 'text-green-400'
-                      }`}>
+                      <span className={`font-medium ${dashboardStats.yourHealthFactor === 'N/A'
+                        ? 'text-gray-400'
+                        : dashboardStats.yourHealthFactor.includes('At Risk')
+                          ? 'text-red-400'
+                          : 'text-green-400'
+                        }`}>
                         {dashboardStats.yourHealthFactor}
                       </span>
                     </div>
                   </div>
-<button 
-  onClick={handleHealthCheck}
-  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
->
-  Check Health Factor
-</button>
+                  <button
+                    onClick={handleHealthCheck}
+                    className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
+                  >
+                    Check Health Factor
+                  </button>
                 </div>
               </div>
 
               <div className="lg:col-span-2">
                 <div className="bg-indigo-950/30 backdrop-blur-sm border border-purple-500/20 rounded-xl p-8 h-full transition duration-300 hover:border-purple-500/30">
                   <h3 className="text-2xl font-semibold text-white mb-6">Borrow aUSD</h3>
-                  
+
                   <form onSubmit={handleBorrow} className="space-y-6">
                     <div>
                       <label className="block text-gray-300 mb-2 font-medium">ETH Collateral</label>
@@ -369,14 +368,14 @@ function Borrowing() {
                         className="w-full bg-indigo-950/50 text-white rounded-lg p-3 border border-purple-500/30 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                       />
                     </div>
-                    
+
                     <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-500/20">
                       <div className="flex justify-between">
                         <span className="text-gray-300 text-sm">Liquidation Threshold</span>
                         <span className="text-red-400 text-sm font-medium">150%</span>
                       </div>
                     </div>
-                    
+
                     <button
                       type="submit"
                       className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
@@ -388,7 +387,7 @@ function Borrowing() {
                 </div>
               </div>
             </div>
-          
+
             {/* Recent Activity */}
             <div className="bg-indigo-950/30 backdrop-blur-sm border border-purple-500/20 rounded-xl p-8 transition duration-300 hover:border-purple-500/30">
               <div className="flex justify-between items-center mb-6">
@@ -398,7 +397,7 @@ function Borrowing() {
                   <span className="text-sm">Live updates</span>
                 </div>
               </div>
-              
+
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-purple-500/10">
                   <thead>
@@ -421,7 +420,7 @@ function Borrowing() {
                             )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{borrower.collateralAmount} ETH</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${borrower.borrowedAmount}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{(borrower.borrowedAmount) + " aETH"}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className="px-2 py-1 text-xs rounded-full bg-yellow-900/30 text-yellow-400">Locked</span>
                           </td>
