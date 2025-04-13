@@ -6,10 +6,10 @@ function Borrowing() {
   const [isLoading, setIsLoading] = useState(true);
   const [borrowers, setBorrowers] = useState([]);
   const [dashboardStats, setDashboardStats] = useState({
-    totalCollateral: '182.6',
-    totalBorrowed: '245,150',
-    availableLiquidity: '187,350',
-    yourCollateral: '0',
+    totalCollateral: '0',
+    totalBorrowed: '0',
+    availableLiquidity: '0',
+    yourCollateral: '0', 
     yourBorrowed: '0',
     yourHealthFactor: 'N/A'
   });
