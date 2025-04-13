@@ -1,13 +1,106 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import "./Borrowing.jsx";
-import "./Lending.jsx"
+import "./Lending.jsx";
+import { getContracts } from '../contract/Pool.js';
+import { ethers } from 'ethers';
 
 function Home() {
+  const [lendedAmount, setLendedAmount] = useState('0');
+  const [totalLiquidity, setTotalLiquidity] = useState('0');
+  const [protocolValue, setProtocolValue] = useState('0');
+  const [collateralLocked, setCollateralLocked] = useState('0');
+  const [avgCollateralRatio, setAvgCollateralRatio] = useState('150');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Fetch data when component mounts
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const { pool } = await getContracts();
+      if (pool) {
+        await Promise.all([
+          fetchTotalLendedAmount(pool),
+          fetchTotalLiquidity(pool),
+          fetchProtocolValue(pool),
+          fetchCollateralLocked(pool)
+        ]);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTotalLendedAmount = async (contract) => {
+    try {
+      const totalLended = await contract.getTotalLended();
+      setLendedAmount(ethers.formatUnits(totalLended, 18));
+    } catch (error) {
+      console.error("Error fetching total lended amount:", error);
+    }
+  };
+
+  const fetchTotalLiquidity = async (contract) => {
+    try {
+      const totalLiq = await contract.getTotalLiquidity();
+      setTotalLiquidity(ethers.formatUnits(totalLiq, 18));
+    } catch (error) {
+      console.error("Error fetching total liquidity:", error);
+    }
+  };
+
+  const fetchProtocolValue = async (contract) => {
+    try {
+      const value = await contract.getProtocolValue();
+      const valueInEth = ethers.formatUnits(value, 18);
+      setProtocolValue(valueInEth);
+    } catch (error) {
+      console.error("Error fetching protocol value:", error);
+    }
+  };
+
+  const fetchCollateralLocked = async (contract) => {
+    try {
+      const totalCollateral = await contract.getTotalCollateralETH();
+      const totalCollateralInEth = ethers.formatUnits(totalCollateral, 18);
+      setCollateralLocked(totalCollateralInEth);
+    } catch (error) {
+      console.error("Error fetching collateral locked:", error);
+    }
+  }
+
+  // Format numbers for display
+  const formatValue = (value, isUSD = false) => {
+    const num = parseFloat(value);
+    if (isNaN(num)) return isUSD ? '$0' : '0 ETH';
+
+    if (isUSD) {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: 'USD',
+        maximumFractionDigits: 0
+      }).format(num);
+    }
+
+    return `${num.toFixed(1)} ETH`;
+  };
+
+  // Calculate USD value
+  const calculateUSD = (ethAmount) => {
+    // Assuming an ETH price of $1800 for demonstration
+    // In a real app, you would fetch the current price from an API
+    const ethPrice = 1800;
+    return ethAmount * ethPrice;
+  };
+
   return (
     <div className="min-h-screen">
-      
-
       <div className="space-y-16 py-12">
         {/* Hero Section */}
         <section className="max-w-4xl mx-auto text-center">
@@ -18,10 +111,10 @@ function Home() {
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-300 max-w-2xl mx-auto font-light">
-             Lending and borrowing, secured by ETH collateral
+              Lending and borrowing, secured by ETH collateral
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
             {/* Lender Card */}
             <Link to="/Lending" className="group">
@@ -35,7 +128,7 @@ function Home() {
                 </div>
                 <h3 className="text-2xl font-semibold text-white mb-3">Lend ETH</h3>
                 <p className="text-gray-300 mb-6 flex-grow">
-                  Provide liquidity to the protocol and receive aUSD tokens. Earn interest as borrowers utilize the pool.
+                  Provide liquidity to the protocol and receive aETH tokens. Earn interest as borrowers utilize the pool.
                 </p>
                 <div className="flex items-center text-purple-400 group-hover:text-purple-300 transition">
                   <span className="mr-2 font-medium">Lend</span>
@@ -46,7 +139,7 @@ function Home() {
                 </div>
               </div>
             </Link>
-            
+
             {/* Borrower Card */}
             <Link to="/Borrowing" className="group">
               <div className="h-full bg-blue-900/10 backdrop-blur-sm border border-blue-500/10 rounded-xl p-8 hover:bg-blue-900/20 transition">
@@ -55,12 +148,11 @@ function Home() {
                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                   </svg>
                 </div>
-                <h3 className="text-2xl font-semibold text-white mb-3">Borrow aUSD</h3>
+                <h3 className="text-2xl font-semibold text-white mb-3">Borrow aETH</h3>
                 <p className="text-gray-300 mb-6 flex-grow">
-                  Deposit ETH as collateral and borrow aUSD tokens while maintaining a healthy collateralization ratio.
+                  Deposit ETH as collateral and borrow aETH tokens while maintaining a healthy collateralization ratio.
                 </p>
                 <div className="flex items-center text-blue-400 group-hover:text-blue-300 transition">
-                  
                   <span className="mr-2 font-medium">Borrow</span>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="group-hover:translate-x-1 transition">
                     <line x1="5" y1="12" x2="19" y2="12"></line>
@@ -77,16 +169,34 @@ function Home() {
           <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-2xl blur-xl"></div>
           <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6 p-8 rounded-2xl backdrop-blur-sm">
             <div className="text-center p-6">
-              <p className="text-4xl font-light text-white mb-2">245.8 ETH</p>
-              <p className="text-gray-400">Total ETH Locked</p>
+              <p className="text-4xl font-light text-white mb-2">
+                {loading ? "Loading..." : formatValue(collateralLocked)}
+              </p>
+              <p className="text-gray-400">Total Collateral Locked</p>
             </div>
             <div className="text-center p-6 border-y md:border-y-0 md:border-x border-purple-500/10">
-              <p className="text-4xl font-light text-white mb-2">$442,500</p>
+              <p className="text-4xl font-light text-white mb-2">
+                {loading ? "Loading..." : formatValue(calculateUSD(parseFloat(protocolValue)), true)}
+              </p>
               <p className="text-gray-400">Protocol Value</p>
             </div>
             <div className="text-center p-6">
-              <p className="text-4xl font-light text-white mb-2">150%</p>
+              <p className="text-4xl font-light text-white mb-2">{avgCollateralRatio}%</p>
               <p className="text-gray-400">Average Collateral Ratio</p>
+            </div>
+          </div>
+          <div className="relative grid grid-cols-1 md:grid-cols-2 gap-6 p-8 rounded-2xl backdrop-blur-sm">
+            <div className="text-center p-6">
+              <p className="text-4xl font-light text-white mb-2">
+                {loading ? "Loading..." : formatValue(lendedAmount)}
+              </p>
+              <p className="text-gray-400">Total Lended aETH</p>
+            </div>
+            <div className="text-center p-6">
+              <p className="text-4xl font-light text-white mb-2">
+                {loading ? "Loading..." : formatValue(totalLiquidity)}
+              </p>
+              <p className="text-gray-400">Total Liquidity</p>
             </div>
           </div>
         </section>
@@ -99,7 +209,7 @@ function Home() {
               AEthos simplifies DeFi lending and borrowing without sacrificing security or usability. The protocol operates with a clear set of principles.
             </p>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
             <div>
               <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
@@ -112,19 +222,19 @@ function Home() {
                 Our protocol focuses on ETH collateral for clarity and security. This single-asset approach simplifies risk assessment and liquidation processes.
               </p>
             </div>
-            
+
             <div>
               <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center mr-3">
                   <span className="text-white font-medium">2</span>
                 </div>
-                Dollar-Pegged aUSD
+                Dollar-Pegged aETH
               </h3>
               <p className="text-gray-300 pl-11">
-                Lenders receive aUSD tokens pegged to the US Dollar, providing a stable representation of their deposited value regardless of ETH price fluctuations.
+                Lenders receive aETH tokens pegged to the US Dollar, providing a stable representation of their deposited value regardless of ETH price fluctuations.
               </p>
             </div>
-            
+
             <div>
               <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center mr-3">
@@ -136,7 +246,7 @@ function Home() {
                 All positions must maintain at least 150% collateralization. This protects lenders while giving borrowers reasonable leverage on their ETH positions.
               </p>
             </div>
-            
+
             <div>
               <h3 className="text-xl font-semibold text-white mb-6 flex items-center">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-blue-500 flex items-center justify-center mr-3">
@@ -151,7 +261,7 @@ function Home() {
           </div>
         </section>
 
-        {/* Simplified How It Works Section */}
+        {/* How It Works Section */}
         <section className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-semibold text-white mb-4">How AEthos Works</h2>
@@ -161,7 +271,7 @@ function Home() {
             {/* For Lenders Card */}
             <div className="bg-purple-900/10 border border-purple-500/20 rounded-xl p-8">
               <h3 className="text-2xl font-semibold text-white mb-6">For Lenders</h3>
-              
+
               <ul className="space-y-6">
                 <li className="flex">
                   <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center mr-4">
@@ -172,17 +282,17 @@ function Home() {
                     <p className="text-gray-300 text-sm mt-1">Supply ETH to the protocol's smart contract pool.</p>
                   </div>
                 </li>
-                
+
                 <li className="flex">
                   <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center mr-4">
                     <span className="text-purple-300 font-medium">2</span>
                   </div>
                   <div>
-                    <h4 className="font-medium text-white">Receive aUSD</h4>
-                    <p className="text-gray-300 text-sm mt-1">Get dollar-pegged aUSD tokens at the current ETH value.</p>
+                    <h4 className="font-medium text-white">Receive aETH</h4>
+                    <p className="text-gray-300 text-sm mt-1">Get dollar-pegged aETH tokens at the current ETH value.</p>
                   </div>
                 </li>
-                
+
                 <li className="flex">
                   <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center mr-4">
                     <span className="text-purple-300 font-medium">3</span>
@@ -192,23 +302,23 @@ function Home() {
                     <p className="text-gray-300 text-sm mt-1">Interest accrues automatically as borrowers use the pool.</p>
                   </div>
                 </li>
-                
+
                 <li className="flex">
                   <div className="flex-shrink-0 w-8 h-8 bg-purple-500/20 rounded-full flex items-center justify-center mr-4">
                     <span className="text-purple-300 font-medium">4</span>
                   </div>
                   <div>
                     <h4 className="font-medium text-white">Withdraw ETH</h4>
-                    <p className="text-gray-300 text-sm mt-1">Return aUSD to withdraw your ETH plus earned interest anytime.</p>
+                    <p className="text-gray-300 text-sm mt-1">Return aETH to withdraw your ETH plus earned interest anytime.</p>
                   </div>
                 </li>
               </ul>
             </div>
-            
+
             {/* For Borrowers Card */}
             <div className="bg-blue-900/10 border border-blue-500/20 rounded-xl p-8">
               <h3 className="text-2xl font-semibold text-white mb-6">For Borrowers</h3>
-              
+
               <ul className="space-y-6">
                 <li className="flex">
                   <div className="flex-shrink-0 w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center mr-4">
@@ -219,17 +329,17 @@ function Home() {
                     <p className="text-gray-300 text-sm mt-1">Lock ETH as collateral in the protocol's smart contract.</p>
                   </div>
                 </li>
-                
+
                 <li className="flex">
                   <div className="flex-shrink-0 w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center mr-4">
                     <span className="text-blue-300 font-medium">2</span>
                   </div>
                   <div>
-                    <h4 className="font-medium text-white">Borrow aUSD</h4>
-                    <p className="text-gray-300 text-sm mt-1">Borrow up to 66% of your collateral's value in aUSD tokens.</p>
+                    <h4 className="font-medium text-white">Borrow aETH</h4>
+                    <p className="text-gray-300 text-sm mt-1">Borrow up to 66% of your collateral's value in aETH tokens.</p>
                   </div>
                 </li>
-                
+
                 <li className="flex">
                   <div className="flex-shrink-0 w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center mr-4">
                     <span className="text-blue-300 font-medium">3</span>
@@ -239,21 +349,20 @@ function Home() {
                     <p className="text-gray-300 text-sm mt-1">Keep your collateralization ratio above 150% to avoid liquidation.</p>
                   </div>
                 </li>
-                
+
                 <li className="flex">
                   <div className="flex-shrink-0 w-8 h-8 bg-blue-500/20 rounded-full flex items-center justify-center mr-4">
                     <span className="text-blue-300 font-medium">4</span>
                   </div>
                   <div>
                     <h4 className="font-medium text-white">Repay & Reclaim</h4>
-                    <p className="text-gray-300 text-sm mt-1">Return borrowed aUSD plus interest to reclaim your ETH collateral.</p>
+                    <p className="text-gray-300 text-sm mt-1">Return borrowed aETH plus interest to reclaim your ETH collateral.</p>
                   </div>
                 </li>
               </ul>
             </div>
           </div>
         </section>
-
       </div>
 
       {/* Simple Footer */}
@@ -263,18 +372,18 @@ function Home() {
             <div>
               <h5 className="font-medium text-white mb-4">AEthos</h5>
               <p className="text-gray-400 text-sm">
-               Lending and borrowing protocol secured by ETH collateral.
+                Lending and borrowing protocol secured by ETH collateral.
               </p>
             </div>
-            
+
             <div>
               <h5 className="font-medium text-white mb-4">Protocol</h5>
               <ul className="space-y-2">
-                <li><Link to="/dashboard/lender" className="text-gray-400 hover:text-white text-sm">Lend ETH</Link></li>
-                <li><Link to="/dashboard/borrower" className="text-gray-400 hover:text-white text-sm">Borrow aUSD</Link></li>
+                <li><Link to="/Lending" className="text-gray-400 hover:text-white text-sm">Lend ETH</Link></li>
+                <li><Link to="/Borrowing" className="text-gray-400 hover:text-white text-sm">Borrow aETH</Link></li>
               </ul>
             </div>
-            
+
             <div>
               <h5 className="font-medium text-white mb-4">Resources</h5>
               <ul className="space-y-2">
@@ -282,7 +391,7 @@ function Home() {
                 <li><Link to="/faq" className="text-gray-400 hover:text-white text-sm">FAQ</Link></li>
               </ul>
             </div>
-            
+
             <div>
               <h5 className="font-medium text-white mb-4">Connect</h5>
               <div className="flex space-x-4">
@@ -307,7 +416,7 @@ function Home() {
               </div>
             </div>
           </div>
-          
+
           <div className="mt-8 pt-6 border-t border-purple-500/10 text-center">
             <p className="text-gray-400 text-sm">
               © 2025 AEthos Protocol. All rights reserved.

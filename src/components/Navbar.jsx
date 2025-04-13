@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Wallet, LogOut } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 
 function Navbar({ isConnected, onConnect, onDisconnect, account }) {
   // Function to format account address (abbreviate it)
@@ -31,12 +31,6 @@ function Navbar({ isConnected, onConnect, onDisconnect, account }) {
                   <Wallet className="w-5 h-5 mr-2 text-purple-400" />
                   <span className="text-white text-sm font-medium">{formatAddress(account)}</span>
                 </div>
-                <button
-                  onClick={onDisconnect}
-                  className="flex items-center px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg border border-purple-500/20 transition-colors duration-200"
-                >
-                  <LogOut className="w-4 h-4 text-purple-400" />
-                </button>
               </div>
             ) : (
               <button
