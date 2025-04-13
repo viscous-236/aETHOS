@@ -19,7 +19,7 @@ function Navbar({ isConnected, onConnect, onDisconnect, account }) {
                 to="/"
                 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400"
               >
-                aETHOS
+               ReFi
               </NavLink>
               <div className="hidden md:flex items-center ml-8">
               </div>

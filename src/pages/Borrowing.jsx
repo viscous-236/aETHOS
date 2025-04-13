@@ -217,9 +217,9 @@ function Borrowing() {
         setIsLoading(false);
         return;
       }
-
+      
       const result = await checkHealthWithEvent(account);
-      alert(`Your Health Status: ${result}`);
+      alert(`Your Collateral Health Status: ${result}`);
 
     } catch (error) {
       console.error("Error during health check:", error);
@@ -282,7 +282,7 @@ function Borrowing() {
       <div className="container mx-auto px-4 py-12">
         <div className="mb-10">
           <h1 className="text-4xl font-bold text-white mb-2">BORROW</h1>
-          <p className="text-gray-300">Deposit ETH as collateral and borrow aUSD against it</p>
+          <p className="text-gray-300">Deposit ETH as collateral and borrow aETH against it</p>
         </div>
 
         {isLoading ? (
@@ -300,7 +300,7 @@ function Borrowing() {
                   <p className="text-gray-400">Total Collateral Locked</p>
                 </div>
                 <div className="text-center p-5 border-l border-purple-500/10">
-                  <p className="text-3xl font-light text-white mb-2">${dashboardStats.availableLiquidity}</p>
+                  <p className="text-3xl font-light text-white mb-2">{dashboardStats.availableLiquidity} aETH</p>
                   <p className="text-gray-400">Available Liquidity</p>
                 </div>
               </div>
@@ -329,11 +329,11 @@ function Borrowing() {
 
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
                       <span>Amount Borrowed</span>
-                      <span className="text-white font-medium">{Number(dashboardStats.yourBorrowed).toFixed(4) + "aETH"}</span>
+                      <span className="text-white font-medium">{Number(dashboardStats.yourBorrowed).toFixed(4) +  ""+ "aETH"}</span>
                     </div>
 
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
-                      <span>Health Status</span>
+                      <span>Collateral status</span>
                       <span className={`font-medium ${dashboardStats.yourHealthFactor === 'N/A'
                         ? 'text-gray-400'
                         : dashboardStats.yourHealthFactor.includes('At Risk')
@@ -348,14 +348,14 @@ function Borrowing() {
                     onClick={handleHealthCheck}
                     className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
                   >
-                    Check Health Factor
+                    Liquidation Check
                   </button>
                 </div>
               </div>
 
               <div className="lg:col-span-2">
                 <div className="bg-indigo-950/30 backdrop-blur-sm border border-purple-500/20 rounded-xl p-8 h-full transition duration-300 hover:border-purple-500/30">
-                  <h3 className="text-2xl font-semibold text-white mb-6">Borrow aUSD</h3>
+                  <h3 className="text-2xl font-semibold text-white mb-6">Borrow aETH</h3>
 
                   <form onSubmit={handleBorrow} className="space-y-6">
                     <div>
@@ -371,7 +371,7 @@ function Borrowing() {
 
                     <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-500/20">
                       <div className="flex justify-between">
-                        <span className="text-gray-300 text-sm">Liquidation Threshold</span>
+                        <span className="text-gray-300 text-sm">Maximum Collateral Ratio</span>
                         <span className="text-red-400 text-sm font-medium">150%</span>
                       </div>
                     </div>
@@ -381,7 +381,7 @@ function Borrowing() {
                       className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
                       disabled={isLoading}
                     >
-                      {isLoading ? 'Processing...' : 'Borrow aUSD'}
+                      {isLoading ? 'Processing...' : 'Borrow aETH'}
                     </button>
                   </form>
                 </div>
