@@ -1,183 +1,303 @@
 import React, { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
+import { getContracts } from '../contract/Pool.js';
 
 function Borrowing() {
   const [collateralAmount, setCollateralAmount] = useState('');
   const [borrowAmount, setBorrowAmount] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [account, setAccount] = useState('');
   const [borrowers, setBorrowers] = useState([]);
+  const [borrowingActivity, setBorrowingActivity] = useState([]);
+  
   const [dashboardStats, setDashboardStats] = useState({
-    totalCollateral: '182.6',
-    totalBorrowed: '245,150',
-    availableLiquidity: '187,350',
-    yourCollateral: '0',
+    totalCollateral: '0',
+    availableLiquidity: '0', 
+    yourCollateral: '0', 
     yourBorrowed: '0',
     yourHealthFactor: 'N/A'
   });
 
-  // Calculate max borrowable amount
-  const calculateMaxBorrowable = (ethAmount) => {
-    if (!ethAmount || isNaN(ethAmount) || parseFloat(ethAmount) <= 0) return 0;
-    const ethPrice = 1800;
-    const collateralValue = parseFloat(ethAmount) * ethPrice;
-    return (collateralValue * 0.75).toFixed(2); // 75% of collateral value
-  };
-
-  // Calculate health factor
-  const calculateHealthFactor = (collateralETH, borrowedUSD) => {
-    if (!borrowedUSD || parseFloat(borrowedUSD) === 0) return "∞";
-    const ethPrice = 1800;
-    const collateralValue = parseFloat(collateralETH) * ethPrice;
-    return ((collateralValue / parseFloat(borrowedUSD)) * 100).toFixed(0);
-  };
-
-  // Simulate loading data
+  // Connect to wallet and load data
   useEffect(() => {
-    setTimeout(() => {
-      setBorrowers([
-        { address: '0x62F...A8e3', collateralAmount: '15.8', borrowedAmount: '21,250', healthFactor: '175%', timestamp: '3 hours ago' },
-        { address: '0x9aB...C2d4', collateralAmount: '8.2', borrowedAmount: '9,800', healthFactor: '195%', timestamp: '7 hours ago' },
-        { address: '0x4dE...F5b2', collateralAmount: '22.5', borrowedAmount: '30,200', healthFactor: '162%', timestamp: '11 hours ago' },
-        { address: '0x1cD...34A7', collateralAmount: '5.4', borrowedAmount: '6,480', healthFactor: '190%', timestamp: '18 hours ago' },
-        { address: '0xE67...B9c1', collateralAmount: '12.3', borrowedAmount: '14,760', healthFactor: '140%', timestamp: '1 day ago' }
-      ]);
-      setIsLoading(false);
-    }, 1500);
+    let isMounted = true;
+    
+    const init = async () => {
+      if (window.ethereum) {
+        try {
+          // Check if account is already connected to prevent multiple requests
+          const accounts = await window.ethereum.request({ 
+            method: 'eth_accounts' // Use eth_accounts instead of eth_requestAccounts to avoid prompting
+          });
+          
+          if (accounts && accounts.length > 0) {
+            setAccount(accounts[0]);
+            if (isMounted) {
+              fetchData(accounts[0]); // Pass the account to fetchData
+            }
+          } else {
+            // Only request if no accounts are connected
+            try {
+              const newAccounts = await window.ethereum.request({ 
+                method: 'eth_requestAccounts' 
+              });
+              if (isMounted) {
+                setAccount(newAccounts[0]);
+                fetchData(newAccounts[0]);
+              }
+            } catch (requestError) {
+              console.error("Error requesting accounts:", requestError);
+              if (isMounted) setIsLoading(false);
+            }
+          }
+        } catch (error) {
+          console.error("Error connecting to wallet:", error);
+          if (isMounted) setIsLoading(false);
+        }
+      } else {
+        console.error("Ethereum wallet not detected");
+        if (isMounted) setIsLoading(false);
+      }
+    };
+
+    init();
+
+    // Listen for account changes
+    if (window.ethereum) {
+      const handleAccountsChanged = (accounts) => {
+        if (isMounted) {
+          setAccount(accounts[0]);
+          fetchData(accounts[0]);
+        }
+      };
+      
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      
+      return () => {
+        isMounted = false;
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+      };
+    }
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  // Simulate live updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!isLoading) {
-        const randomAddress = `0x${Math.floor(Math.random() * 16777215).toString(16).padStart(4, '0')}...${Math.floor(Math.random() * 16777215).toString(16).padStart(4, '0')}`;
-        const randomCollateral = (Math.random() * 15 + 2).toFixed(2);
-        const randomBorrowed = Math.floor(parseFloat(randomCollateral) * 1800 * 0.7).toFixed(0);
-        const formattedBorrowed = randomBorrowed.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-        const randomHealth = ((parseFloat(randomCollateral) * 1800 / randomBorrowed) * 100).toFixed(0);
-        
-        setBorrowers(prev => [
-          { 
-            address: randomAddress, 
-            collateralAmount: randomCollateral, 
-            borrowedAmount: formattedBorrowed,
-            healthFactor: `${randomHealth}%`,
-            timestamp: 'Just now'
-          },
-          ...prev.slice(0, 4)
-        ]);
-        
-        setDashboardStats(prev => ({
-          ...prev,
-          totalCollateral: (parseFloat(prev.totalCollateral) + parseFloat(randomCollateral)).toFixed(1),
-          totalBorrowed: (parseFloat(prev.totalBorrowed.replace(/,/g, '')) + parseFloat(randomBorrowed)).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ","),
-          availableLiquidity: (parseFloat(prev.availableLiquidity.replace(/,/g, '')) - parseFloat(randomBorrowed)).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-        }));
+  const checkHealthWithEvent = async (userAccount) => {
+    try {
+      const { pool } = await getContracts();
+      if (!pool || !pool.HealthofLiquidity) {
+        console.error("HealthofLiquidity method is not available on the pool contract.");
+        return "Unknown";
       }
-    }, 12000);
-    return () => clearInterval(interval);
-  }, [isLoading]);
+  
+      // Call the HealthofLiquidity function - it returns [isLiquidatable, collateralRatio]
+      const [liquid, cr] = await pool.callStatic.HealthofLiquidity(userAccount);
+  
+      // Format the collateral ratio for better readability
+      const formattedCollateralRatio = parseFloat(cr.toString()).toFixed(2);
+  
+      // Check the liquidity status based on the value of isLiquidatable
+      return liquid ? 
+        `At Risk, Ratio: ${formattedCollateralRatio}%` : 
+        `Healthy, Ratio: ${formattedCollateralRatio}%`;
+    } catch (error) {
+      console.error("Error in health check:", error);
+      return "Unknown";
+    }
+  };
+  
 
-  const handleBorrow = (e) => {
+  const fetchData = async (userAccount) => {
+    if (!userAccount) {
+      userAccount = account; // Use state if not passed
+      if (!userAccount) {
+        console.warn("Wallet account is not set yet.");
+        setIsLoading(false);
+        return;
+      }
+    }
+    
+    setIsLoading(true);
+    try {
+      const { aETH, pool } = await getContracts();
+      if (!aETH || !pool) {
+        setIsLoading(false);
+        return;
+      }
+      
+      //data from the contract for borrowing 
+      const [collateral, borrowedAmount] = await pool.getBorrowerInfo(userAccount);
+      const aEthBalance = await aETH.balanceOf(userAccount);
+
+      // Protocol Data 
+      const totalLiquidity = await pool.getTotalLiquidity();
+      const totalCollateral = await pool.getTotalCollateralETH();
+      
+      const healthFactor = borrowedAmount > 0n
+        ? await checkHealthWithEvent(userAccount)
+        : 'N/A';
+
+      setDashboardStats({
+        totalCollateral: ethers.formatEther(totalCollateral),
+        availableLiquidity: ethers.formatEther(totalLiquidity),
+        yourCollateral: ethers.formatEther(collateral),
+        yourBorrowed: ethers.formatEther(borrowedAmount),
+        yourHealthFactor: healthFactor
+      });
+
+      // Get all borrowers data
+      const borrowersData = await pool.getAllBorrowers();
+      
+      const activeBorrowingActivity = [];
+
+      if (collateral > 0n) {
+        activeBorrowingActivity.push({
+          address: 'Your Position',
+          collateralAmount: ethers.formatEther(collateral),
+          borrowedAmount: ethers.formatEther(borrowedAmount),
+          isUser: true
+        });
+      }
+
+      for (let i = 0; i < borrowersData.length; i++) {
+        const borrowerData = borrowersData[i];
+        const borrowerAddress = borrowerData[0]; // address
+        if (borrowerAddress.toLowerCase() === userAccount.toLowerCase()) continue; // Skip the user's own address
+        
+        const collateralAmount = borrowerData[1]; // collateral
+        const totalBorrowed = borrowerData[2]; // borrowed amount
+        
+        if (collateralAmount === 0n) continue;
+        
+        activeBorrowingActivity.push({
+          address: shortenAddress(borrowerAddress),
+          collateralAmount: ethers.formatEther(collateralAmount),
+          borrowedAmount: ethers.formatEther(totalBorrowed),
+        });
+      }
+      
+      setBorrowers(activeBorrowingActivity);
+      setBorrowingActivity(activeBorrowingActivity);
+
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const shortenAddress = (address) => {
+    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+  };
+  
+  const handleHealthCheck = async () => {
+    try {
+        setIsLoading(true);
+        if (!account) {
+            alert("Wallet not connected");
+            setIsLoading(false);
+            return;
+        }
+
+        const result = await checkHealthWithEvent(account);
+        console.log("Health Check Result:", result); // Add this log
+        alert(`Your Health Status: ${result}`);
+        
+    } catch (error) {
+        console.error("Error during health check:", error);
+        alert("Failed to perform health check: " + error.message);
+    } finally {
+        setIsLoading(false);
+    }
+};
+
+  
+  const handleBorrow = async (e) => {
     e.preventDefault();
     
-    if (!collateralAmount || isNaN(collateralAmount) || parseFloat(collateralAmount) <= 0) {
-      alert('Please enter a valid collateral amount');
-      return;
-    }
-    if (!borrowAmount || isNaN(borrowAmount) || parseFloat(borrowAmount) <= 0) {
-      alert('Please enter a valid borrow amount');
+    if (!collateralAmount || isNaN(collateralAmount)) {
+      alert("Please enter a valid collateral amount");
       return;
     }
     
-    const maxBorrowable = calculateMaxBorrowable(collateralAmount);
-    if (parseFloat(borrowAmount) > parseFloat(maxBorrowable)) {
-      alert(`You can only borrow up to $${maxBorrowable} based on your collateral`);
-      return;
-    }
-    
-    alert(`Depositing ${collateralAmount} ETH as collateral and borrowing $${borrowAmount} aUSD.`);
-    
-    const newHealthFactor = calculateHealthFactor(collateralAmount, borrowAmount);
-    
-    setDashboardStats(prev => ({
-      ...prev,
-      yourCollateral: (parseFloat(prev.yourCollateral) + parseFloat(collateralAmount)).toFixed(2),
-      yourBorrowed: (parseFloat(prev.yourBorrowed) + parseFloat(borrowAmount)).toFixed(2),
-      yourHealthFactor: `${newHealthFactor}%`,
-      totalCollateral: (parseFloat(prev.totalCollateral) + parseFloat(collateralAmount)).toFixed(1),
-      totalBorrowed: (parseFloat(prev.totalBorrowed.replace(/,/g, '')) + parseFloat(borrowAmount)).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ","),
-      availableLiquidity: (parseFloat(prev.availableLiquidity.replace(/,/g, '')) - parseFloat(borrowAmount)).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-    }));
-    
-    setBorrowers(prev => [
-      { 
-        address: 'Your Position', 
-        collateralAmount: collateralAmount, 
-        borrowedAmount: borrowAmount,
-        healthFactor: `${newHealthFactor}%`,
-        timestamp: 'Just now'
-      },
-      ...prev.slice(0, 4)
-    ]);
-    
-    setCollateralAmount('');
-    setBorrowAmount('');
-  };
-
-  const handleHealthCheck = () => {
-    if (parseFloat(dashboardStats.yourCollateral) === 0 || parseFloat(dashboardStats.yourBorrowed) === 0) {
-      alert('You have no active borrowing position to check.');
-      return;
-    }
-    
-    const currentRatio = calculateHealthFactor(dashboardStats.yourCollateral, dashboardStats.yourBorrowed);
-    
-    if (parseInt(currentRatio) < 150) {
-      alert(`⚠️ LIQUIDATION RISK! Your current health factor is ${currentRatio}%, which is below the safe threshold of 150%.`);
-    } else {
-      alert(`Your position is healthy. Current health factor: ${currentRatio}%`);
+    try {
+      setIsLoading(true);
+      const { pool } = await getContracts();
+      
+      if (!pool) {
+        alert("Unable to connect to the contract");
+        setIsLoading(false);
+        return;
+      }
+      
+      // Convert ETH to Wei
+      const collateralWei = ethers.parseEther(collateralAmount);
+      
+      console.log("Borrowing with collateral:", collateralWei.toString());
+      
+      // Call the borrow function with just the ETH value
+      const tx = await pool.borrow({
+        value: collateralWei
+      });
+      
+      console.log("Transaction sent:", tx.hash);
+      alert(`Transaction submitted! Hash: ${tx.hash}`);
+      
+      await tx.wait();
+      console.log("Transaction confirmed!");
+      
+      // Refresh data after successful transaction
+      await fetchData(account);
+      
+      // Reset form
+      setCollateralAmount('');
+      setBorrowAmount('');
+      
+    } catch (error) {
+      console.error("Error during borrowing:", error);
+      alert("Failed to borrow: " + error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
-
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-950 to-gray-950">
       <div className="container mx-auto px-4 py-12">
         <div className="mb-10">
           <h1 className="text-4xl font-bold text-white mb-2">BORROW</h1>
           <p className="text-gray-300">Deposit ETH as collateral and borrow aUSD against it</p>
         </div>
-
+  
         {isLoading ? (
           <div className="flex justify-center items-center py-24">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
           </div>
         ) : (
           <>
             {/* Main Stats */}
             <section className="relative mb-12">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-2xl blur-xl"></div>
-              <div className="relative grid grid-cols-2 md:grid-cols-3 gap-6 p-8 rounded-2xl backdrop-blur-sm">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-2xl blur-xl"></div>
+              <div className="relative grid grid-cols-2 md:grid-cols-2 gap-6 p-8 rounded-2xl backdrop-blur-sm border border-purple-500/20">
                 <div className="text-center p-5">
                   <p className="text-3xl font-light text-white mb-2">{dashboardStats.totalCollateral} ETH</p>
                   <p className="text-gray-400">Total Collateral Locked</p>
                 </div>
-                <div className="text-center p-5 border-l border-blue-500/10">
-                  <p className="text-3xl font-light text-white mb-2">${dashboardStats.totalBorrowed}</p>
-                  <p className="text-gray-400">Total Borrowed</p>
-                </div>
-                <div className="text-center p-5 border-l border-blue-500/10">
+                <div className="text-center p-5 border-l border-purple-500/10">
                   <p className="text-3xl font-light text-white mb-2">${dashboardStats.availableLiquidity}</p>
                   <p className="text-gray-400">Available Liquidity</p>
                 </div>
               </div>
             </section>
-
+  
             {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
               {/* Your Borrowing Info */}
               <div className="lg:col-span-1">
-                <div className="bg-blue-900/10 backdrop-blur-sm border border-blue-500/10 rounded-xl p-8 h-full">
+                <div className="bg-indigo-950/40 backdrop-blur-sm border border-purple-500/20 rounded-xl p-8 h-full transition duration-300 hover:border-purple-500/30">
                   <div className="flex items-center mb-6">
-                    <div className="p-3 bg-blue-500/10 rounded-lg text-blue-400 w-fit mr-4">
+                    <div className="p-3 bg-purple-500/10 rounded-lg text-purple-400 w-fit mr-4">
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
                         <line x1="1" y1="10" x2="23" y2="10"></line>
@@ -187,49 +307,40 @@ function Borrowing() {
                   </div>
                   
                   <div className="space-y-6 text-gray-300 mb-8">
-                    <div className="flex justify-between items-center border-b border-blue-500/10 pb-4">
+                    <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
                       <span>Your Collateral</span>
                       <span className="text-white font-medium">{dashboardStats.yourCollateral} ETH</span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-blue-500/10 pb-4">
+
+                    <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
                       <span>Amount Borrowed</span>
                       <span className="text-white font-medium">${dashboardStats.yourBorrowed}</span>
                     </div>
-                    <div className="flex justify-between items-center border-b border-blue-500/10 pb-4">
-                      <span>Health Factor</span>
+
+                    <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
+                      <span>Health Status</span>
                       <span className={`font-medium ${
-                        dashboardStats.yourHealthFactor === 'N/A' 
-                          ? 'text-gray-400' 
-                          : parseInt(dashboardStats.yourHealthFactor) < 150 
-                            ? 'text-red-400' 
+                        dashboardStats.yourHealthFactor === 'N/A'
+                          ? 'text-gray-400'
+                          : dashboardStats.yourHealthFactor.includes('At Risk')
+                            ? 'text-red-400'
                             : 'text-green-400'
                       }`}>
                         {dashboardStats.yourHealthFactor}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center pb-4">
-                      <span>Collateral Value</span>
-                      <span className="text-white font-medium">
-                        ${(parseFloat(dashboardStats.yourCollateral) * 1800).toFixed(2)}
-                      </span>
-                    </div>
                   </div>
-                  
                   <button 
-                    onClick={handleHealthCheck}
-                    className={`w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ${
-                      parseFloat(dashboardStats.yourBorrowed) === 0 ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
-                    disabled={parseFloat(dashboardStats.yourBorrowed) === 0}
-                  >
-                    Check Health Status
-                  </button>
+  onClick={handleHealthCheck}
+  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
+>
+  Check Health Factor
+</button>
                 </div>
               </div>
-              
-              {/* Borrow Form */}
+
               <div className="lg:col-span-2">
-                <div className="bg-gray-800/50 backdrop-blur-sm border border-blue-500/10 rounded-xl p-8 h-full">
+                <div className="bg-indigo-950/30 backdrop-blur-sm border border-purple-500/20 rounded-xl p-8 h-full transition duration-300 hover:border-purple-500/30">
                   <h3 className="text-2xl font-semibold text-white mb-6">Borrow aUSD</h3>
                   
                   <form onSubmit={handleBorrow} className="space-y-6">
@@ -240,53 +351,11 @@ function Borrowing() {
                         value={collateralAmount}
                         onChange={(e) => setCollateralAmount(e.target.value)}
                         placeholder="Enter collateral amount"
-                        className="w-full bg-gray-800 text-white rounded-lg p-3 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        className="w-full bg-indigo-950/50 text-white rounded-lg p-3 border border-purple-500/30 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                       />
-                      
-                      {collateralAmount && !isNaN(collateralAmount) && parseFloat(collateralAmount) > 0 && (
-                        <div className="mt-2 text-sm text-gray-400">
-                          Maximum borrowable: <span className="text-white font-medium">${calculateMaxBorrowable(collateralAmount)}</span>
-                        </div>
-                      )}
                     </div>
                     
-                    <div>
-                      <label className="block text-gray-300 mb-2 font-medium">Borrow Amount (aUSD)</label>
-                      <input
-                        type="number"
-                        value={borrowAmount}
-                        onChange={(e) => setBorrowAmount(e.target.value)}
-                        placeholder="Enter amount to borrow"
-                        className="w-full bg-gray-800 text-white rounded-lg p-3 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                      />
-                      
-                      {collateralAmount && borrowAmount && !isNaN(collateralAmount) && !isNaN(borrowAmount) && 
-                       parseFloat(collateralAmount) > 0 && parseFloat(borrowAmount) > 0 && (
-                        <div className="mt-2 text-sm">
-                          Estimated health factor: 
-                          <span className={`ml-1 font-medium ${
-                            calculateHealthFactor(collateralAmount, borrowAmount) < 150 
-                              ? 'text-red-400' 
-                              : 'text-green-400'
-                          }`}>
-                            {calculateHealthFactor(collateralAmount, borrowAmount)}%
-                            {calculateHealthFactor(collateralAmount, borrowAmount) < 150 && (
-                              <span className="ml-2">⚠️ Liquidation Risk!</span>
-                            )}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-500/10">
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-300 text-sm">ETH Price</span>
-                        <span className="text-white text-sm font-medium">$1,800.00</span>
-                      </div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-300 text-sm">Collateral Factor</span>
-                        <span className="text-white text-sm font-medium">75%</span>
-                      </div>
+                    <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-500/20">
                       <div className="flex justify-between">
                         <span className="text-gray-300 text-sm">Liquidation Threshold</span>
                         <span className="text-red-400 text-sm font-medium">150%</span>
@@ -295,17 +364,18 @@ function Borrowing() {
                     
                     <button
                       type="submit"
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
+                      disabled={isLoading}
                     >
-                      Borrow aUSD
+                      {isLoading ? 'Processing...' : 'Borrow aUSD'}
                     </button>
                   </form>
                 </div>
               </div>
             </div>
-
+          
             {/* Recent Activity */}
-            <div className="bg-gray-800/30 backdrop-blur-sm border border-blue-500/10 rounded-xl p-8">
+            <div className="bg-indigo-950/30 backdrop-blur-sm border border-purple-500/20 rounded-xl p-8 transition duration-300 hover:border-purple-500/30">
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-2xl font-semibold text-white">Recent Borrowing Activity</h3>
                 <div className="flex items-center text-green-400">
@@ -315,40 +385,38 @@ function Borrowing() {
               </div>
               
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-700">
+                <table className="min-w-full divide-y divide-purple-500/10">
                   <thead>
                     <tr>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Borrower</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Collateral</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Borrowed Amount</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Health Factor</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {borrowers.map((borrower, index) => (
-                      <tr key={index} className={index === 0 ? "bg-blue-900/20" : ""}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {borrower.address === 'Your Position' ? (
-                            <span className="text-blue-400 font-medium">{borrower.address}</span>
-                          ) : (
-                            <span className="text-gray-300">{borrower.address}</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{borrower.collateralAmount} ETH</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${borrower.borrowedAmount}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`font-medium ${
-                            parseInt(borrower.healthFactor) < 150 
-                              ? 'text-red-400' 
-                              : 'text-green-400'
-                          }`}>
-                            {borrower.healthFactor}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{borrower.timestamp}</td>
+                  <tbody className="divide-y divide-purple-500/10">
+                    {borrowers.length > 0 ? (
+                      borrowers.map((borrower, index) => (
+                        <tr key={index} className={`${borrower.isUser ? "bg-purple-900/20" : ""} hover:bg-indigo-900/20 transition-colors duration-200`}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            {borrower.isUser ? (
+                              <span className="text-purple-400 font-medium">{borrower.address}</span>
+                            ) : (
+                              <span className="text-gray-300">{borrower.address}</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{borrower.collateralAmount} ETH</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${borrower.borrowedAmount}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className="px-2 py-1 text-xs rounded-full bg-yellow-900/30 text-yellow-400">Locked</span>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan="4" className="px-6 py-4 text-center text-gray-400">No borrowing activity yet</td>
                       </tr>
-                    ))}
+                    )}
                   </tbody>
                 </table>
               </div>

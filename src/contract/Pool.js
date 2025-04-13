@@ -1,7 +1,8 @@
 import { ethers } from "ethers";
 
-const AETH_ADDRESS = "0x7AB40D8B490662c10cEd89cC539CCC4dBcbeF6bc";
-const POOL_ADDRESS = "0xD808574055073d1a30C012D4C1A408E9A9Ad7c29";
+const AETH_ADDRESS =  "0x73CeF2964375f32fe10E6eD7D971fA43465f8E0D";
+
+const POOL_ADDRESS = "0xdecdae0A5aaCDA856693d1151E64003573BcC8d6";
 
 const AETH_ABI = [
   "function name() view returns (string)",
@@ -22,7 +23,7 @@ const POOL_ABI = [
   "function deposit(uint256 amount)",
   "function withDraw()",
   "function borrow() payable",
-  "function HealthofLiquidity(address borrower)",
+  "function HealthofLiquidity(address) view returns (bool liquid,uint256 cr)",
   "function getLenderInfo(address) view returns (uint256 amount, uint256 depositTime)",
   "function getBorrowerInfo(address) view returns (uint256 collateral, uint256 borrowedammount)",
   "function getTotalLiquidity() view returns (uint256)",
