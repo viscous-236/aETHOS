@@ -1,92 +1,275 @@
 import React, { useState, useEffect } from 'react';
+import { ethers } from 'ethers';
+import { getContracts } from '../contract/Pool.js';
 
 function Lending() {
   const [amount, setAmount] = useState('');
+  const [ethAmount, setEthAmount] = useState('');
   const [isLoading, setIsLoading] = useState(true);
-  const [users, setUsers] = useState([]);
+  const [account, setAccount] = useState('');
+  const [lendingActivity, setLendingActivity] = useState([]);
+  const [lockupComplete, setLockupComplete] = useState(false);
   const [dashboardStats, setDashboardStats] = useState({
-    totalDeposited: '245.8',
-    earnedInterest: '3.42',
-    currentAPY: '4.2',
-    protocolValue: '442,500',
+    totalDeposited: '0',
+    earnedInterest: '0',
+    protocolValue: '0',
     yourDeposits: '0',
-    yourEarnings: '0'
+    yourEarnings: '0',
+    aEthBalance: '0'
   });
 
-  // Simulate loading data from smart contract
+  // Connect to wallet and load data
   useEffect(() => {
-    setTimeout(() => {
-      setUsers([
-        { address: '0x71C...92e1', amountDeposited: '24.5', interestEarned: '0.42', timestamp: '2 hours ago' },
-        { address: '0x8fD...34A2', amountDeposited: '18.2', interestEarned: '0.31', timestamp: '5 hours ago' },
-        { address: '0x3eB...F7c9', amountDeposited: '5.23', interestEarned: '0.09', timestamp: '9 hours ago' },
-        { address: '0x2aA...45D1', amountDeposited: '42.1', interestEarned: '0.72', timestamp: '12 hours ago' },
-        { address: '0xF12...B8c3', amountDeposited: '11.8', interestEarned: '0.20', timestamp: '1 day ago' }
-      ]);
-      setIsLoading(false);
-    }, 1500);
-  }, []);
-
-  // Add new user updates at random intervals to simulate real-time updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!isLoading) {
-        const randomAddress = `0x${Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0')}...${Math.floor(Math.random() * 16777215).toString(16).padStart(4, '0')}`;
-        const randomDeposit = (Math.random() * 10 + 2).toFixed(2);
-        const randomInterest = (randomDeposit * 0.042 * (Math.random() * 0.5)).toFixed(3);
-        
-        setUsers(prevUsers => [
-          { 
-            address: randomAddress, 
-            amountDeposited: randomDeposit, 
-            interestEarned: randomInterest,
-            timestamp: 'Just now'
-          },
-          ...prevUsers.slice(0, 4)
-        ]);
-        
-        setDashboardStats(prev => ({
-          ...prev,
-          totalDeposited: (parseFloat(prev.totalDeposited) + parseFloat(randomDeposit)).toFixed(1),
-          earnedInterest: (parseFloat(prev.earnedInterest) + parseFloat(randomInterest)).toFixed(2),
-          protocolValue: (parseFloat(prev.protocolValue.replace(',', '')) + parseFloat(randomDeposit) * 1800).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-        }));
+    const init = async () => {
+      if (window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+          setAccount(accounts[0]);
+          await fetchData();
+        } catch (error) {
+          console.error("Error connecting to wallet:", error);
+        }
+      } else {
+        console.error("Ethereum wallet not detected");
+        setIsLoading(false);
       }
-    }, 8000);
-    
-    return () => clearInterval(interval);
-  }, [isLoading]);
+    };
 
-  const handleDeposit = (e) => {
-    e.preventDefault();
-    
-    if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
-      alert('Please enter a valid amount');
-      return;
+    init();
+
+    // Listen for account changes
+    if (window.ethereum) {
+      window.ethereum.on('accountsChanged', (accounts) => {
+        setAccount(accounts[0]);
+        fetchData();
+      });
     }
-    
-    // In a real app, this would interact with a wallet and smart contract
-    alert(`Depositing ${amount} ETH to the lending pool. You will receive ${(parseFloat(amount) * 1800).toFixed(2)} aUSD.`);
-    
-    // Simulate successful deposit by updating stats
-    setDashboardStats(prev => ({
-      ...prev,
-      yourDeposits: (parseFloat(prev.yourDeposits) + parseFloat(amount)).toFixed(2),
-      totalDeposited: (parseFloat(prev.totalDeposited) + parseFloat(amount)).toFixed(1),
-    }));
-    
-    // Add current user to the list
-    setUsers(prevUsers => [
-      { address: 'Your Deposit', amountDeposited: amount, interestEarned: '0.000', timestamp: 'Just now' },
-      ...prevUsers
-    ]);
-    
-    // Clear the form
-    setAmount('');
+
+    return () => {
+      if (window.ethereum) {
+        window.ethereum.removeAllListeners('accountsChanged');
+      }
+    };
+  }, [account]);
+
+  const fetchData = async () => {
+    setIsLoading(true);
+    try {
+      if (!account) {
+        console.warn("Wallet account is not set yet.");
+        setIsLoading(false);
+        return;
+      }
+      const { aETH, pool } = await getContracts();
+      if (!aETH || !pool) {
+        setIsLoading(false);
+        return;
+      }
+
+      // Get user-specific data
+      const [amount, depositTime] = await pool.getLenderInfo(account);
+      const aEthBalance = await aETH.balanceOf(account);
+      const userTokens = await pool.getUserToken(account);
+
+      // Get protocol data
+      const totalLiquidity = await pool.getTotalLiquidity();
+      const totalLended = await pool.getTotalLended();
+      const protocolValue = await pool.getProtocolValue();
+      const totalCollateral = await pool.getTotalCollateralETH();
+
+      // Get time since deposit from contract
+      let timeAgoInSeconds = 0;
+      if (amount > 0n) {
+        timeAgoInSeconds = await pool.getTimeAgo(account);
+      }
+
+      // Check if lockup period is complete (1 day = 86400 seconds)
+      const isLockupComplete = timeAgoInSeconds >= 86400n;
+      setLockupComplete(isLockupComplete);
+
+      let potentialInterest = "0";
+
+      if (amount && amount > 0n) {
+        const amountInEth = parseFloat(ethers.formatEther(amount));
+        const interestInEth = amountInEth * 0.05;
+        potentialInterest = interestInEth.toFixed(4);
+      }
+
+      // Format data for display
+      setDashboardStats({
+        totalDeposited: ethers.formatEther(totalLended),
+        earnedInterest: '0', // This would need to track actual paid interest
+        protocolValue: ethers.formatEther(protocolValue),
+        yourDeposits: ethers.formatEther(amount),
+        yourEarnings: potentialInterest,
+        aEthBalance: ethers.formatEther(aEthBalance),
+      });
+
+      // Get all lenders from the contract
+      const lendersData = await pool.getLenders();
+
+      // Build lending activity from all active lenders
+      const activeLendingActivity = [];
+
+      // Add the user's own lending activity if they have a deposit
+      if (amount > 0n) {
+        const formattedTimeAgo = formatTimeAgo(timeAgoInSeconds);
+
+        activeLendingActivity.push({
+          address: shortenAddress(account),
+          amountDeposited: ethers.formatEther(amount),
+          interestEarned: isLockupComplete ? "Available" : "Pending",
+          timestamp: formattedTimeAgo,
+          status: isLockupComplete ? 'Ready to Withdraw' : 'Locked',
+          isUser: true
+        });
+      }
+
+      for (let i = 0; i < lendersData.length; i++) {
+        const lenderData = lendersData[i];
+        const lenderAddress = lenderData[0]; // address
+        if (lenderAddress.toLowerCase() === account.toLowerCase()) continue; // Skip the user's own address
+        const lenderAmount = lenderData[1]; // amount
+        const lenderDepositTime = lenderData[2]; // depositTime
+
+        if (lenderAmount === 0n) continue;
+
+        const currentTimestamp = Math.floor(Date.now() / 1000);
+        const secondsSinceDeposit = BigInt(currentTimestamp) - lenderDepositTime;
+        const lenderLockupComplete = secondsSinceDeposit >= 86400n;
+
+        activeLendingActivity.push({
+          address: `${shortenAddress(lenderAddress)}`,
+          amountDeposited: ethers.formatEther(lenderAmount),
+          interestEarned: lenderLockupComplete ? "Available" : "Pending",
+          timestamp: formatTimeAgo(secondsSinceDeposit),
+          status: lenderLockupComplete ? 'Ready to Withdraw' : 'Locked',
+          isUser: false
+        });
+      }
+
+      setLendingActivity(activeLendingActivity);
+
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleWithdraw = () => {
-    alert('Withdrawal functionality would be implemented here');
+  const handleGetTokens = async (e) => {
+    e.preventDefault();
+
+    if (!ethAmount || isNaN(ethAmount) || parseFloat(ethAmount) <= 0) {
+      alert('Please enter a valid amount of ETH');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const { aETH, pool } = await getContracts();
+
+      // Convert ETH amount to wei
+      const weiAmount = ethers.parseEther(ethAmount);
+
+      // Call the getYourToken function with ETH value
+      const tx = await pool.getYourToken({ value: weiAmount });
+      await tx.wait();
+      const aEthBalance = await aETH.balanceOf(account);
+      console.log("aETH Balance:", ethers.formatEther(aEthBalance));
+      alert(`Successfully minted aETH tokens!`);
+      await fetchData();
+      setEthAmount('');
+    } catch (error) {
+      console.error("Error getting tokens:", error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeposit = async (e) => {
+    e.preventDefault();
+
+    if (!amount || isNaN(amount) || parseFloat(amount) <= 0) {
+      alert('Please enter a valid amount of aETH tokens');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const { aETH, pool } = await getContracts();
+
+      // Convert string amount to proper format for blockchain
+      const amountInWei = ethers.parseEther(amount);
+      const aEthBalance = await aETH.balanceOf(account);
+
+      if (amountInWei > aEthBalance) {
+        alert("You don't have enough aETH tokens to deposit");
+        return;
+      }
+
+      // First approve the pool to spend your aETH tokens
+      const approveTx = await aETH.approve(pool.target, amountInWei);
+      await approveTx.wait();
+
+      // Then call the deposit function with the converted amount
+      const depositTx = await pool.deposit(amountInWei);
+      await depositTx.wait();
+
+      alert(`Successfully deposited ${amount} aETH tokens to the lending pool!`);
+      await fetchData();
+      setAmount('');
+    } catch (error) {
+      console.error("Error depositing:", error);
+      alert(`Error: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    try {
+      setIsLoading(true);
+      const { pool } = await getContracts();
+
+      // Call the withDraw function
+      const tx = await pool.withDraw();
+      await tx.wait();
+
+      alert(`Successfully withdrawn aETH tokens plus 5% interest!`);
+      await fetchData();
+    } catch (error) {
+      console.error("Error withdrawing:", error);
+      if (error.message.includes("YouShouldWaitForLockupPeriod")) {
+        alert("You need to wait at least 1 day before withdrawing");
+      } else {
+        alert(`Error: ${error.message}`);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Helper function to format addresses
+  const shortenAddress = (address) => {
+    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
+  };
+
+  // Helper function to format time ago from seconds
+  const formatTimeAgo = (seconds) => {
+    // Convert BigInt to Number for easier calculations
+    const secondsNum = Number(seconds);
+
+    if (secondsNum < 60) {
+      return 'Just now';
+    } else if (secondsNum < 3600) {
+      return `${Math.floor(secondsNum / 60)} minutes ago`;
+    } else if (secondsNum < 86400) {
+      return `${Math.floor(secondsNum / 3600)} hours ago`;
+    } else {
+      return `${Math.floor(secondsNum / 86400)} days ago`;
+    }
   };
 
   return (
@@ -94,7 +277,7 @@ function Lending() {
       <div className="container mx-auto px-4 py-12">
         <div className="mb-10">
           <h1 className="text-4xl font-bold text-white mb-2">LEND</h1>
-          <p className="text-gray-300">Provide liquidity to the protocol and earn interest on your ETH deposits</p>
+          <p className="text-gray-300">Provide liquidity to the protocol and earn 5% interest after 1 day on your aETH deposits</p>
         </div>
 
         {isLoading ? (
@@ -108,26 +291,115 @@ function Lending() {
               <div className="absolute inset-0 bg-gradient-to-r from-purple-900/20 to-blue-900/20 rounded-2xl blur-xl"></div>
               <div className="relative grid grid-cols-2 md:grid-cols-4 gap-6 p-8 rounded-2xl backdrop-blur-sm">
                 <div className="text-center p-5">
-                  <p className="text-3xl font-light text-white mb-2">{dashboardStats.totalDeposited} ETH</p>
-                  <p className="text-gray-400">Total ETH Locked</p>
+                  <p className="text-3xl font-light text-white mb-2">{parseFloat(dashboardStats.totalDeposited).toFixed(2)} aETH</p>
+                  <p className="text-gray-400">Total aETH Locked</p>
                 </div>
                 <div className="text-center p-5 border-l border-purple-500/10">
-                  <p className="text-3xl font-light text-white mb-2">${dashboardStats.protocolValue}</p>
+                  <p className="text-3xl font-light text-white mb-2">${parseFloat(dashboardStats.protocolValue).toFixed(2)}</p>
                   <p className="text-gray-400">Protocol Value</p>
                 </div>
                 <div className="text-center p-5 border-l border-purple-500/10">
-                  <p className="text-3xl font-light text-white mb-2">{dashboardStats.earnedInterest} ETH</p>
+                  <p className="text-3xl font-light text-white mb-2">{parseFloat(dashboardStats.earnedInterest).toFixed(2)} aETH</p>
                   <p className="text-gray-400">Total Interest Paid</p>
                 </div>
                 <div className="text-center p-5 border-l border-purple-500/10">
-                  <p className="text-3xl font-light text-white mb-2">{dashboardStats.currentAPY}%</p>
-                  <p className="text-gray-400">Current APY</p>
+                  <p className="text-3xl font-light text-white mb-2">5%</p>
+                  <p className="text-gray-400">Interest Rate (1 day)</p>
                 </div>
               </div>
             </section>
 
-            {/* Main Content */}
+            {/* Main Content - 3 columns for aETH, Deposit, and Your Lending */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
+              {/* Get aETH Tokens */}
+              <div className="lg:col-span-1">
+                <div className="bg-blue-900/10 backdrop-blur-sm border border-blue-500/10 rounded-xl p-8 h-full">
+                  <div className="flex items-center mb-6">
+                    <div className="p-3 bg-blue-500/10 rounded-lg text-blue-400 w-fit mr-4">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="12" y1="8" x2="12" y2="16"></line>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                      </svg>
+                    </div>
+                    <h3 className="text-2xl font-semibold text-white">Get aETH Tokens</h3>
+                  </div>
+
+                  <form onSubmit={handleGetTokens} className="space-y-6">
+                    <div>
+                      <label className="block text-gray-300 mb-2 font-medium">ETH Amount</label>
+                      <input
+                        type="number"
+                        value={ethAmount}
+                        onChange={(e) => setEthAmount(e.target.value)}
+                        placeholder="Enter ETH amount"
+                        className="w-full bg-gray-800 text-white rounded-lg p-3 border border-gray-600 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-500/10">
+                      <div className="flex justify-between mb-2">
+                        <span className="text-gray-300 text-sm">Current aETH Balance</span>
+                        <span className="text-white text-sm font-medium">{parseFloat(dashboardStats.aEthBalance).toFixed(2)} aETH</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-300 text-sm">1 aETH Value</span>
+                        <span className="text-white text-sm font-medium">$1.00</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
+                    >
+                      Get aETH Tokens
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* Deposit Form */}
+              <div className="lg:col-span-1">
+                <div className="bg-gray-800/50 backdrop-blur-sm border border-purple-500/10 rounded-xl p-8 h-full">
+                  <h3 className="text-2xl font-semibold text-white mb-6">Deposit aETH</h3>
+
+                  <form onSubmit={handleDeposit} className="space-y-6">
+                    <div>
+                      <label className="block text-gray-300 mb-2 font-medium">aETH Amount</label>
+                      <input
+                        type="number"
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        placeholder="Enter amount to deposit"
+                        className="w-full bg-gray-800 text-white rounded-lg p-3 border border-gray-600 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-500/10">
+                      <div className="flex justify-between mb-2">
+                        <span className="text-gray-300 text-sm">Interest Rate</span>
+                        <span className="text-green-400 text-sm font-medium">5% after 1 day</span>
+                      </div>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-gray-300 text-sm">Lockup Period</span>
+                        <span className="text-white text-sm font-medium">1 day</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-300 text-sm">Available aETH</span>
+                        <span className="text-white text-sm font-medium">{parseFloat(dashboardStats.aEthBalance).toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
+                    >
+                      Deposit aETH
+                    </button>
+                  </form>
+                </div>
+              </div>
+
               {/* Your Lending Info */}
               <div className="lg:col-span-1">
                 <div className="bg-purple-900/10 backdrop-blur-sm border border-purple-500/10 rounded-xl p-8 h-full">
@@ -141,130 +413,96 @@ function Lending() {
                     </div>
                     <h3 className="text-2xl font-semibold text-white">Your Lending</h3>
                   </div>
-                  
+
                   <div className="space-y-6 text-gray-300 mb-8">
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4">
                       <span>Your Deposits</span>
-                      <span className="text-white font-medium">{dashboardStats.yourDeposits} ETH</span>
+                      <span className="text-white font-medium">{parseFloat(dashboardStats.yourDeposits).toFixed(2)} aETH</span>
                     </div>
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4">
-                      <span>Interest Earned</span>
-                      <span className="text-white font-medium">{dashboardStats.yourEarnings} ETH</span>
+                      <span>Potential Interest</span>
+                      <span className="text-white font-medium">{parseFloat(dashboardStats.yourEarnings).toFixed(2)} aETH</span>
                     </div>
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4">
-                      <span>Current APY</span>
-                      <span className="text-green-400 font-medium">{dashboardStats.currentAPY}%</span>
+                      <span>Interest Rate</span>
+                      <span className="text-green-400 font-medium">5% after 1 day</span>
                     </div>
                     <div className="flex justify-between items-center pb-4">
-                      <span>Value in aUSD</span>
+                      <span>Status</span>
+                      <span className={`font-medium ${lockupComplete ? 'text-green-400' : 'text-yellow-400'}`}>
+                        {lockupComplete ? 'Ready to Withdraw' : 'Lockup Period Active'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center pb-4">
+                      <span>Value in USD</span>
                       <span className="text-white font-medium">
-                        ${(parseFloat(dashboardStats.yourDeposits) * 1800).toFixed(2)}
+                        ${(parseFloat(dashboardStats.yourDeposits) + parseFloat(dashboardStats.yourEarnings)).toFixed(2)}
                       </span>
                     </div>
                   </div>
-                  
-                  <button 
+
+                  <button
                     onClick={handleWithdraw}
-                    className={`w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 ${parseFloat(dashboardStats.yourDeposits) === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    disabled={parseFloat(dashboardStats.yourDeposits) === 0}
+                    className={`w-full ${lockupComplete ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-600'} text-white font-bold py-3 px-4 rounded-lg transition duration-200 ${parseFloat(dashboardStats.yourDeposits) === 0 || !lockupComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={parseFloat(dashboardStats.yourDeposits) === 0 || !lockupComplete}
                   >
-                    Withdraw ETH
+                    {lockupComplete ? 'Withdraw aETH + Interest' : 'Wait for Lockup Period'}
                   </button>
-                </div>
-              </div>
-              
-              {/* Deposit Form */}
-              <div className="lg:col-span-2">
-                <div className="bg-gray-800/50 backdrop-blur-sm border border-purple-500/10 rounded-xl p-8 h-full">
-                  <h3 className="text-2xl font-semibold text-white mb-6">Deposit ETH</h3>
-                  
-                  <form onSubmit={handleDeposit} className="space-y-6">
-                    <div>
-                      <label className="block text-gray-300 mb-2 font-medium">ETH Amount</label>
-                      <input
-                        type="number"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        placeholder="Enter amount to deposit"
-                        className="w-full bg-gray-800 text-white rounded-lg p-3 border border-gray-600 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
-                      />
-                      
-                      {amount && !isNaN(amount) && parseFloat(amount) > 0 && (
-                        <div className="mt-3 text-sm text-gray-400">
-                          You will receive approximately <span className="text-white font-medium">${(parseFloat(amount) * 1800).toFixed(2)}</span> aUSD
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-500/10">
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-300 text-sm">ETH Price</span>
-                        <span className="text-white text-sm font-medium">$1,800.00</span>
-                      </div>
-                      <div className="flex justify-between mb-2">
-                        <span className="text-gray-300 text-sm">Current APY</span>
-                        <span className="text-green-400 text-sm font-medium">{dashboardStats.currentAPY}%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-300 text-sm">Protocol Fee</span>
-                        <span className="text-white text-sm font-medium">0.1%</span>
-                      </div>
-                    </div>
-                    
-                    <button
-                      type="submit"
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
-                    >
-                      Deposit ETH
-                    </button>
-                  </form>
                 </div>
               </div>
             </div>
 
-            {/* Recent Activity */}
+            {/* Lending Activity Table */}
             <div className="bg-gray-800/30 backdrop-blur-sm border border-purple-500/10 rounded-xl p-8">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-2xl font-semibold text-white">Recent Lending Activity</h3>
-                <div className="flex items-center text-green-400">
-                  <div className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></div>
-                  <span className="text-sm">Live updates</span>
-                </div>
+                <h3 className="text-2xl font-semibold text-white">All Lending Activity</h3>
+                {account && (
+                  <div className="text-sm text-gray-400">
+                    Connected: {shortenAddress(account)}
+                  </div>
+                )}
               </div>
-              
+
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-700">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">User</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Amount Deposited</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Interest Earned</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Time</th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-700">
-                    {users.map((user, index) => (
-                      <tr key={index} className={index === 0 ? "bg-purple-900/20" : ""}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          {user.address === 'Your Deposit' ? (
-                            <span className="text-purple-400 font-medium">{user.address}</span>
-                          ) : (
-                            <span className="text-gray-300">{user.address}</span>
-                          )}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{user.amountDeposited} ETH</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{user.interestEarned} ETH</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{user.timestamp}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-900/30 text-green-400">
-                            Complete
-                          </span>
-                        </td>
+                {lendingActivity.length > 0 ? (
+                  <table className="min-w-full divide-y divide-gray-700">
+                    <thead>
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">User</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Amount Deposited</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Interest Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Deposited</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700">
+                      {lendingActivity.map((activity, index) => (
+                        <tr key={index} className={activity.isUser ? "bg-purple-900/30" : "bg-gray-800/40"}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={activity.isUser ? "text-purple-400 font-medium" : "text-gray-300"}>
+                              {activity.address} {activity.isUser && "(You)"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{activity.amountDeposited} aETH</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">{activity.interestEarned}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-400">{activity.timestamp}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`px-2 py-1 text-xs font-medium rounded-full ${activity.status === 'Ready to Withdraw'
+                              ? 'bg-green-900/30 text-green-400'
+                              : 'bg-yellow-900/30 text-yellow-400'
+                              }`}>
+                              {activity.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-center py-8 text-gray-400">
+                    No lending activity found. Deposit aETH to start earning interest!
+                  </div>
+                )}
               </div>
             </div>
           </>
