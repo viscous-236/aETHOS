@@ -332,11 +332,11 @@ function Borrowing() {
                     </div>
                   </div>
                   <button
-                    onClick={handleHealthCheck}
-                    className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition"
-                  >
-                    Liquidation Check
-                  </button>
+  onClick={handleHealthCheck}
+  className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 transition cursor-pointer"
+>
+  Liquidation Check
+</button>
                 </div>
               </div>
 
@@ -364,12 +364,12 @@ function Borrowing() {
                     </div>
 
                     <button
-                      type="submit"
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Processing...' : 'Borrow aETH'}
-                    </button>
+  type="submit"
+  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 cursor-pointer"
+  disabled={isLoading}
+>
+  {isLoading ? 'Processing...' : 'Borrow aETH'}
+</button>
                   </form>
                 </div>
               </div>

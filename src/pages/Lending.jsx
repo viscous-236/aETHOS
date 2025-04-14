@@ -345,11 +345,11 @@ function Lending() {
                     </div>
 
                     <button
-                      type="submit"
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
-                    >
-                      Get aETH Tokens
-                    </button>
+  type="submit"
+  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 cursor-pointer"
+>
+  Get aETH Tokens
+</button>
                   </form>
                 </div>
               </div>
@@ -387,11 +387,11 @@ function Lending() {
                     </div>
 
                     <button
-                      type="submit"
-                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
-                    >
-                      Deposit aETH
-                    </button>
+  type="submit"
+  className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200 cursor-pointer"
+>
+  Deposit aETH
+</button>
                   </form>
                 </div>
               </div>
@@ -436,14 +436,13 @@ function Lending() {
                       </span>
                     </div>
                   </div>
-
                   <button
-                    onClick={handleWithdraw}
-                    className={`w-full ${lockupComplete ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-600'} text-white font-bold py-3 px-4 rounded-lg transition duration-200 ${parseFloat(dashboardStats.yourDeposits) === 0 || !lockupComplete ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    disabled={parseFloat(dashboardStats.yourDeposits) === 0 || !lockupComplete}
-                  >
-                    {lockupComplete ? 'Withdraw aETH + Interest' : 'Wait for Lockup Period'}
-                  </button>
+  onClick={handleWithdraw}
+  className={`w-full ${lockupComplete ? 'bg-purple-600 hover:bg-purple-700' : 'bg-gray-600'} text-white font-bold py-3 px-4 rounded-lg transition duration-200 ${parseFloat(dashboardStats.yourDeposits) === 0 || !lockupComplete ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+  disabled={parseFloat(dashboardStats.yourDeposits) === 0 || !lockupComplete}
+>
+  {lockupComplete ? 'Withdraw aETH + Interest' : 'Wait for Lockup Period'}
+</button>
                 </div>
               </div>
             </div>
