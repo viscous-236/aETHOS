@@ -11,23 +11,23 @@ function Navbar({ isConnected, onConnect, onDisconnect, account }) {
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-10 backdrop-blur-md bg-black/50 border-b border-purple-500/20 py-4">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <img
-                src="/Refi_logo.jpg"
-                alt="ReFi Logo"
-                className="h-10 w-auto mr-1"
-              />
-              <NavLink
-                to="/"
-                className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400"
-              >
-                ReFi
-              </NavLink>
-              <div className="hidden md:flex items-center ml-8">
-              </div>
-            </div>
+  <div className="max-w-6xl mx-auto px-4">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center cursor-pointer">
+        <img
+          src="/Refi_logo.jpg"
+          alt="ReFi Logo"
+          className="h-10 w-auto mr-1 cursor-pointer"
+        />
+        <NavLink
+          to="/"
+          className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400 cursor-pointer"
+        >
+          ReFi
+        </NavLink>
+        <div className="hidden md:flex items-center ml-8">
+        </div>
+      </div>
             {isConnected && account ? (
               <div className="flex items-center">
                 <div className="flex items-center mr-2 px-4 py-2 bg-gray-800 rounded-lg border border-purple-500/20">
@@ -39,7 +39,7 @@ function Navbar({ isConnected, onConnect, onDisconnect, account }) {
               <button
                 type="button"
                 onClick={onConnect}
-                className="text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 focus:ring-4 focus:outline-none focus:ring-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-gray-600 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-gray-700"
+                className="text-gray-900 bg-white hover:bg-gray-100 border border-gray-200 focus:ring-4 focus:outline-none focus:ring-gray-100 font-medium rounded-lg text-sm px-5 py-2.5 text-center inline-flex items-center dark:focus:ring-gray-600 dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:hover:bg-gray-700 cursor-pointer"
               >
                 <svg aria-hidden="true" className="w-6 h-5 mr-2 -ml-1" viewBox="0 0 2405 2501" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <g clipPath="url(#clip0_1512_1323)">
