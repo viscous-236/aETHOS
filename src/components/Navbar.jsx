@@ -11,20 +11,24 @@ function Navbar({ isConnected, onConnect, onDisconnect, account }) {
 
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 z-10 backdrop-blur-md bg-black/50 border-b border-purple-500/20 py-4">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <NavLink
-                to="/"
-                className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400"
-              >
-               ReFi
-              </NavLink>
-              <div className="hidden md:flex items-center ml-8">
-              </div>
-            </div>
-
+    <nav className="fixed top-0 left-0 right-0 z-10 backdrop-blur-md bg-black/50 border-b border-purple-500/20 py-4">
+  <div className="max-w-6xl mx-auto px-4">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center">
+        <img 
+          src="/Refi_logo.jpg" 
+          alt="ReFi Logo" 
+          className="h-10 w-auto mr-1"
+        />
+        <NavLink
+          to="/"
+          className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400"
+        >
+          ReFi
+        </NavLink>
+        <div className="hidden md:flex items-center ml-8">
+        </div>
+</div>
             {isConnected && account ? (
               <div className="flex items-center">
                 <div className="flex items-center mr-2 px-4 py-2 bg-gray-800 rounded-lg border border-purple-500/20">
