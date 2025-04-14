@@ -210,7 +210,7 @@ function Home() {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-semibold text-white mb-4">Simple by Design</h2>
             <p className="text-gray-300 max-w-2xl mx-auto">
-             Shield simplifies DeFi lending and borrowing without sacrificing security or usability. The protocol operates with a clear set of principles.
+             ReFi simplifies DeFi lending and borrowing without sacrificing security or usability. The protocol operates with a clear set of principles.
             </p>
           </div>
 
@@ -312,8 +312,8 @@ function Home() {
                     <span className="text-purple-300 font-medium">4</span>
                   </div>
                   <div>
-                    <h4 className="font-medium text-white">Withdraw ETH</h4>
-                    <p className="text-gray-300 text-sm mt-1">Return aETH to withdraw your ETH plus earned interest anytime.</p>
+                    <h4 className="font-medium text-white">Withdraw with interest</h4>
+                    <p className="text-gray-300 text-sm mt-1">Withdraw your aETH with interest after the lockup period.</p>
                   </div>
                 </li>
               </ul>
@@ -359,8 +359,8 @@ function Home() {
                     <span className="text-blue-300 font-medium">4</span>
                   </div>
                   <div>
-                    <h4 className="font-medium text-white">Repay & Reclaim</h4>
-                    <p className="text-gray-300 text-sm mt-1">Return borrowed aETH plus interest to reclaim your ETH collateral.</p>
+                    <h4 className="font-medium text-white">Interface Warning</h4>
+                    <p className="text-gray-300 text-sm mt-1">Clear indication on platform's interface whether you collateral is at risk or not. </p>
                   </div>
                 </li>
               </ul>
