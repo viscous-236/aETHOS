@@ -18,7 +18,6 @@ function Lending() {
     aEthBalance: '0'
   });
 
-  // Connect to wallet and load data
   useEffect(() => {
     const init = async () => {
       if (window.ethereum) {
@@ -37,7 +36,7 @@ function Lending() {
 
     init();
 
-    // Listen for account changes
+
     if (window.ethereum) {
       window.ethereum.on('accountsChanged', (accounts) => {
         setAccount(accounts[0]);
@@ -66,25 +65,24 @@ function Lending() {
         return;
       }
 
-      // Get user-specific data
+
       const [amount, depositTime] = await pool.getLenderInfo(account);
       const aEthBalance = await aETH.balanceOf(account);
       const userTokens = await pool.getUserToken(account);
 
-      // Get protocol data
+
       const totalLiquidity = await pool.getTotalLiquidity();
       const totalLended = await pool.getTotalLended();
       const protocolValue = await pool.getProtocolValue();
       const totalCollateral = await pool.getTotalCollateralETH();
 
-      // Get time since deposit from contract
       let timeAgoInSeconds = 0;
       if (amount > 0n) {
         timeAgoInSeconds = await pool.getTimeAgo(account);
       }
 
-      // Check if lockup period is complete (1 day = 86400 seconds)
-      const isLockupComplete = timeAgoInSeconds >= 86400n;
+
+      const isLockupComplete = timeAgoInSeconds >= 2592000n;
       setLockupComplete(isLockupComplete);
 
       let potentialInterest = "0";
@@ -95,23 +93,23 @@ function Lending() {
         potentialInterest = interestInEth.toFixed(4);
       }
 
-      // Format data for display
+
       setDashboardStats({
         totalDeposited: ethers.formatEther(totalLended),
-        earnedInterest: '0', // This would need to track actual paid interest
+        earnedInterest: '0',
         protocolValue: ethers.formatUnits(protocolValue, 36),
         yourDeposits: ethers.formatEther(amount),
         yourEarnings: potentialInterest,
         aEthBalance: ethers.formatEther(aEthBalance),
       });
 
-      // Get all lenders from the contract
+
       const lendersData = await pool.getLenders();
 
-      // Build lending activity from all active lenders
+
       const activeLendingActivity = [];
 
-      // Add the user's own lending activity if they have a deposit
+
       if (amount > 0n) {
         const formattedTimeAgo = formatTimeAgo(timeAgoInSeconds);
 
@@ -127,16 +125,16 @@ function Lending() {
 
       for (let i = 0; i < lendersData.length; i++) {
         const lenderData = lendersData[i];
-        const lenderAddress = lenderData[0]; // address
-        if (lenderAddress.toLowerCase() === account.toLowerCase()) continue; // Skip the user's own address
-        const lenderAmount = lenderData[1]; // amount
-        const lenderDepositTime = lenderData[2]; // depositTime
+        const lenderAddress = lenderData[0];
+        if (lenderAddress.toLowerCase() === account.toLowerCase()) continue;
+        const lenderAmount = lenderData[1];
+        const lenderDepositTime = lenderData[2];
 
         if (lenderAmount === 0n) continue;
 
         const currentTimestamp = Math.floor(Date.now() / 1000);
         const secondsSinceDeposit = BigInt(currentTimestamp) - lenderDepositTime;
-        const lenderLockupComplete = secondsSinceDeposit >= 86400n;
+        const lenderLockupComplete = secondsSinceDeposit >= 2592000n;
 
         activeLendingActivity.push({
           address: `${shortenAddress(lenderAddress)}`,
@@ -169,10 +167,8 @@ function Lending() {
       setIsLoading(true);
       const { aETH, pool } = await getContracts();
 
-      // Convert ETH amount to wei
       const weiAmount = ethers.parseEther(ethAmount);
 
-      // Call the getYourToken function with ETH value
       const tx = await pool.getYourToken({ value: weiAmount });
       await tx.wait();
       const aEthBalance = await aETH.balanceOf(account);
@@ -200,7 +196,7 @@ function Lending() {
       setIsLoading(true);
       const { aETH, pool } = await getContracts();
 
-      // Convert string amount to proper format for blockchain
+
       const amountInWei = ethers.parseEther(amount);
       const aEthBalance = await aETH.balanceOf(account);
 
@@ -209,7 +205,7 @@ function Lending() {
         return;
       }
 
-      // First approve the pool to spend your aETH tokens
+
       const approveTx = await aETH.approve(pool.target, amountInWei);
       await approveTx.wait();
 
@@ -233,16 +229,16 @@ function Lending() {
       setIsLoading(true);
       const { pool } = await getContracts();
 
-      // Call the withDraw function
+
       const tx = await pool.withDraw();
       await tx.wait();
 
-      alert(`Successfully withdrawn aETH tokens plus 5% interest!`);
+      alert(`Successfully withdrawn aETH tokens plus 4% interest!`);
       await fetchData();
     } catch (error) {
       console.error("Error withdrawing:", error);
       if (error.message.includes("YouShouldWaitForLockupPeriod")) {
-        alert("You need to wait at least 1 day before withdrawing");
+        alert("You need to wait at least 30 days before withdrawing");
       } else {
         alert(`Error: ${error.message}`);
       }
@@ -251,14 +247,14 @@ function Lending() {
     }
   };
 
-  // Helper function to format addresses
+
   const shortenAddress = (address) => {
     return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`;
   };
 
-  // Helper function to format time ago from seconds
+
   const formatTimeAgo = (seconds) => {
-    // Convert BigInt to Number for easier calculations
+
     const secondsNum = Number(seconds);
 
     if (secondsNum < 60) {
@@ -277,7 +273,7 @@ function Lending() {
       <div className="container mx-auto px-4 py-12">
         <div className="mb-10">
           <h1 className="text-4xl font-bold text-white mb-2">LEND</h1>
-          <p className="text-gray-300">Provide liquidity to the protocol and earn 5% interest after 1 day on your aETH deposits</p>
+          <p className="text-gray-300">Provide liquidity to the protocol and earn 4% interest after 30 days on your aETH deposits</p>
         </div>
 
         {isLoading ? (
@@ -303,8 +299,8 @@ function Lending() {
                   <p className="text-gray-400">Total Interest Paid</p>
                 </div>
                 <div className="text-center p-5 border-l border-purple-500/10">
-                  <p className="text-3xl font-light text-white mb-2">5%</p>
-                  <p className="text-gray-400">Interest Rate (1 day)</p>
+                  <p className="text-3xl font-light text-white mb-2">4%</p>
+                  <p className="text-gray-400">Interest Rate (30 days)</p>
                 </div>
               </div>
             </section>
@@ -378,11 +374,11 @@ function Lending() {
                     <div className="bg-purple-900/20 rounded-lg p-4 border border-purple-500/10">
                       <div className="flex justify-between mb-2">
                         <span className="text-gray-300 text-sm">Interest Rate</span>
-                        <span className="text-green-400 text-sm font-medium">5% after 1 day</span>
+                        <span className="text-green-400 text-sm font-medium">4% after 30 days</span>
                       </div>
                       <div className="flex justify-between mb-2">
                         <span className="text-gray-300 text-sm">Lockup Period</span>
-                        <span className="text-white text-sm font-medium">1 day</span>
+                        <span className="text-white text-sm font-medium">30 days</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-300 text-sm">Available aETH</span>
@@ -425,7 +421,7 @@ function Lending() {
                     </div>
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4">
                       <span>Interest Rate</span>
-                      <span className="text-green-400 font-medium">5% after 1 day</span>
+                      <span className="text-green-400 font-medium">4% after 30 days</span>
                     </div>
                     <div className="flex justify-between items-center pb-4">
                       <span>Status</span>

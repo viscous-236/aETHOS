@@ -18,25 +18,23 @@ function Borrowing() {
     yourHealthFactor: 'N/A'
   });
 
-  // Connect to wallet and load data
+
   useEffect(() => {
     let isMounted = true;
 
     const init = async () => {
       if (window.ethereum) {
         try {
-          // Check if account is already connected to prevent multiple requests
           const accounts = await window.ethereum.request({
-            method: 'eth_accounts' // Use eth_accounts instead of eth_requestAccounts to avoid prompting
+            method: 'eth_accounts'
           });
 
           if (accounts && accounts.length > 0) {
             setAccount(accounts[0]);
             if (isMounted) {
-              fetchData(accounts[0]); // Pass the account to fetchData
+              fetchData(accounts[0]);
             }
           } else {
-            // Only request if no accounts are connected
             try {
               const newAccounts = await window.ethereum.request({
                 method: 'eth_requestAccounts'
@@ -62,7 +60,6 @@ function Borrowing() {
 
     init();
 
-    // Listen for account changes
     if (window.ethereum) {
       const handleAccountsChanged = (accounts) => {
         if (isMounted) {
@@ -89,19 +86,14 @@ function Borrowing() {
       const { pool } = await getContracts();
       if (!pool) return "Unknown";
 
-      // Get borrower info to check if they have any borrowed amount
       const [collateral, borrowedAmount] = await pool.getBorrowerInfo(userAccount);
 
-      // If they haven't borrowed anything, return N/A
       if (borrowedAmount === 0n) {
         return "N/A - No active loans";
       }
 
-      // Call the HealthofLiquidity function - it returns [liquid, collateralRatio]
       const [liquid, collateralRatio] = await pool.HealthofLiquidity(userAccount);
 
-      // If liquid is true, it means the collateral ratio is BELOW 150% (at risk)
-      // If liquid is false, it means the collateral ratio is ABOVE 150% (healthy)
       return liquid ?
         `At Risk, Ratio: ${collateralRatio.toString()}%` :
         `Healthy, Ratio: ${collateralRatio.toString()}%`;
@@ -114,7 +106,7 @@ function Borrowing() {
 
   const fetchData = async (userAccount) => {
     if (!userAccount) {
-      userAccount = account; // Use state if not passed
+      userAccount = account;
       if (!userAccount) {
         console.warn("Wallet account is not set yet.");
         setIsLoading(false);
@@ -130,11 +122,9 @@ function Borrowing() {
         return;
       }
 
-      //data from the contract for borrowing 
       const [collateral, borrowedAmount] = await pool.getBorrowerInfo(userAccount);
       const aEthBalance = await aETH.balanceOf(userAccount);
 
-      // Protocol Data 
       const totalLiquidity = await pool.getTotalLiquidity();
       const totalCollateral = await pool.getTotalCollateralETH();
 
@@ -150,7 +140,7 @@ function Borrowing() {
         yourHealthFactor: healthFactor
       });
 
-      // Get all borrowers data
+
       const borrowersArray = await pool.getBorrowers();
 
       const activeBorrowingActivity = [];
@@ -165,24 +155,18 @@ function Borrowing() {
       }
 
       for (let i = 0; i < borrowersArray.length; i++) {
-        // Extract data carefully, checking the structure
         let borrowerAddress, borrowerCollateral, borrowerAmountBorrowed;
 
-        // Log each item to debug
         console.log(`Borrower ${i}:`, borrowersArray[i]);
 
-        // Handle different potential return structures
         if (Array.isArray(borrowersArray[i])) {
-          // If it's an array format
           [borrowerAddress, borrowerCollateral, borrowerAmountBorrowed] = borrowersArray[i];
         } else {
-          // If it's an object with properties
           borrowerAddress = borrowersArray[i].borrower;
           borrowerCollateral = borrowersArray[i].collateralamount;
           borrowerAmountBorrowed = borrowersArray[i].aETHBorrowed;
         }
 
-        // Skip if it's the current user or has no collateral
         if (borrowerAddress.toLowerCase() === userAccount.toLowerCase()) continue;
         if (borrowerCollateral === 0n) continue;
 
@@ -217,7 +201,7 @@ function Borrowing() {
         setIsLoading(false);
         return;
       }
-      
+
       const result = await checkHealthWithEvent(account);
       alert(`Your Collateral Health Status: ${result}`);
 
@@ -232,7 +216,7 @@ function Borrowing() {
   const handleBorrow = async (e) => {
     e.preventDefault();
 
-    if (!collateralAmount || isNaN(collateralAmount)) {
+    if (!collateralAmount || isNaN(collateralAmount) || parseFloat(collateralAmount) <= 0) {
       alert("Please enter a valid collateral amount");
       return;
     }
@@ -247,12 +231,17 @@ function Borrowing() {
         return;
       }
 
-      // Convert ETH to Wei
+      const [, borrowedAmount] = await pool.getBorrowerInfo(account);
+      if (borrowedAmount > 0n) {
+        alert("You have already borrowed aETH. Please repay your loan before borrowing again.");
+        setIsLoading(false);
+        return;
+      }
+
       const collateralWei = ethers.parseEther(collateralAmount);
 
       console.log("Borrowing with collateral:", collateralWei.toString());
 
-      // Call the borrow function with just the ETH value
       const tx = await pool.borrow({
         value: collateralWei
       });
@@ -263,10 +252,8 @@ function Borrowing() {
       await tx.wait();
       console.log("Transaction confirmed!");
 
-      // Refresh data after successful transaction
       await fetchData(account);
 
-      // Reset form
       setCollateralAmount('');
       setBorrowAmount('');
 
@@ -329,7 +316,7 @@ function Borrowing() {
 
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
                       <span>Amount Borrowed</span>
-                      <span className="text-white font-medium">{Number(dashboardStats.yourBorrowed).toFixed(4) +  ""+ "aETH"}</span>
+                      <span className="text-white font-medium">{Number(dashboardStats.yourBorrowed).toFixed(4) + "" + "aETH"}</span>
                     </div>
 
                     <div className="flex justify-between items-center border-b border-purple-500/10 pb-4 hover:border-purple-500/30 transition-colors duration-200">
