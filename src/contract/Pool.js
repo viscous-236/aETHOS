@@ -1,8 +1,8 @@
 import { ethers } from "ethers";
 
-const AETH_ADDRESS =  "0x73CeF2964375f32fe10E6eD7D971fA43465f8E0D";
+const AETH_ADDRESS =  "0x5794634B7b528a0D2a74386bcc362dC231Fa44C0";
 
-const POOL_ADDRESS = "0xdecdae0A5aaCDA856693d1151E64003573BcC8d6";
+const POOL_ADDRESS = "0x320e6Aa274007BdCa26AD628CEf7f5A3B84e9d2E";
 
 const AETH_ABI = [
   "function name() view returns (string)",
